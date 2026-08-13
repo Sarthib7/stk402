@@ -1,0 +1,3 @@
+[submodule "vendor/starknet-privacy"]
+	path = vendor/starknet-privacy
+	url = https://github.com/starkware-libs/starknet-privacy.git

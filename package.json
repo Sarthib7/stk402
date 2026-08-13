@@ -1,0 +1,28 @@
+{
+  "name": "stk402",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "build:contracts:devnet": "cd vendor/starknet-privacy && PATH=\"$INIT_CWD/.tools/bin:$PATH\" SCARB_CACHE=\"$INIT_CWD/.cache/scarb\" XDG_CACHE_HOME=\"$INIT_CWD/.cache\" scarb build -p privacy --features test_contracts",
+    "build:sdk": "tsc -p vendor/starknet-privacy/sdk/tsconfig.build.json",
+    "check:network": "node --env-file-if-exists=.env --import tsx src/check-network.ts",
+    "check:sepolia": "node --env-file-if-exists=.env.sepolia --import tsx src/check-sepolia.ts",
+    "test": "node --import tsx --test \"src/**/*.test.ts\"",
+    "test:devnet": "npm run build:contracts:devnet && npm run build:sdk && node --import tsx --test \"test/devnet/*.test.ts\"",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@starkware-libs/starknet-privacy-sdk": "file:vendor/starknet-privacy/sdk",
+    "@x402/core": "2.22.0",
+    "starknet": "10.0.2"
+  },
+  "devDependencies": {
+    "@types/node": "24.10.1",
+    "tsx": "4.20.6",
+    "typescript": "5.9.3"
+  }
+}
