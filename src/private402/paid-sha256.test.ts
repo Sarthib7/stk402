@@ -151,6 +151,45 @@ test("rejects an invalid tool request before asking for payment", async () => {
     new Request("https://seller.example/other?text=stk402"),
   );
   assert.equal(wrongPath.status, 404);
+
+  const malformed = await handler(
+    new Request("https://seller.example/tools/sha256?text=stk402", {
+      headers: {
+        "payment-signature": Buffer.from(
+          JSON.stringify({ x402Version: 2 }),
+        ).toString("base64"),
+      },
+    }),
+  );
+  assert.equal(malformed.status, 400);
+  assert.deepEqual(await malformed.json(), { error: "invalid_payment_header" });
+});
+
+test("caps outstanding unpaid invoices", async () => {
+  let invoice = 1;
+  const handler = createPaidSha256Handler({
+    network,
+    token,
+    amount: 50n,
+    recipient,
+    facilitator: testFacilitator(),
+    createInvoiceId: () => `0x${invoice++}`,
+    maxOutstandingInvoices: 2,
+  });
+
+  assert.equal(
+    (await handler(new Request("https://seller.example/tools/sha256?text=one"))).status,
+    402,
+  );
+  assert.equal(
+    (await handler(new Request("https://seller.example/tools/sha256?text=two"))).status,
+    402,
+  );
+  const capped = await handler(
+    new Request("https://seller.example/tools/sha256?text=three"),
+  );
+  assert.equal(capped.status, 503);
+  assert.deepEqual(await capped.json(), { error: "invoice_capacity_reached" });
 });
 
 test("rejects a receipt for an invoice the server did not issue", async () => {

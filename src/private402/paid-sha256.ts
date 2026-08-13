@@ -33,6 +33,7 @@ interface PaidSha256Options {
   createInvoiceId?: () => string;
   now?: () => number;
   resourceUrl?: (request: Request) => string;
+  maxOutstandingInvoices?: number;
 }
 
 interface IssuedInvoice {
@@ -62,6 +63,10 @@ export function createPaidSha256Handler(options: PaidSha256Options) {
     options.createInvoiceId ?? (() => `0x${randomBytes(31).toString("hex")}`);
   const now = options.now ?? Date.now;
   const resourceUrl = options.resourceUrl ?? ((request: Request) => request.url);
+  const maxOutstandingInvoices = options.maxOutstandingInvoices ?? 1_000;
+  if (!Number.isSafeInteger(maxOutstandingInvoices) || maxOutstandingInvoices < 1) {
+    throw new Error("maxOutstandingInvoices must be a positive safe integer");
+  }
   const invoices = new Map<string, IssuedInvoice>();
 
   return async function handle(request: Request): Promise<Response> {
@@ -84,6 +89,11 @@ export function createPaidSha256Handler(options: PaidSha256Options) {
       const issuedAt = now();
       for (const [id, invoice] of invoices) {
         if (invoice.expiresAt < issuedAt) invoices.delete(id);
+      }
+      if (invoices.size >= maxOutstandingInvoices) {
+        return json({ error: "invoice_capacity_reached" }, 503, {
+          "retry-after": "60",
+        });
       }
       const paymentRequired = createPrivatePaymentRequired({
         network: options.network,
@@ -116,6 +126,16 @@ export function createPaidSha256Handler(options: PaidSha256Options) {
       return json({ error: "invalid_payment_header" }, 400);
     }
 
+    if (
+      !payload ||
+      typeof payload !== "object" ||
+      !payload.accepted ||
+      typeof payload.accepted !== "object" ||
+      !payload.accepted.extra ||
+      typeof payload.accepted.extra !== "object"
+    ) {
+      return json({ error: "invalid_payment_header" }, 400);
+    }
     const accepted = payload.accepted;
     const claimedInvoice = accepted.extra.invoiceId;
     if (typeof claimedInvoice !== "string") {
