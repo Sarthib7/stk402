@@ -5,6 +5,7 @@ dist/
 !.env.example
 !.env.sepolia.example
 !.env.server.example
+!.env.discovery.example
 data/
 .npm-cache/
 .tools/

@@ -1,0 +1,15 @@
+services:
+  discovery:
+    build:
+      context: ../vendor/starknet-privacy
+      dockerfile: deploy/discovery-service/Dockerfile
+    environment:
+      API_HOST: 0.0.0.0:8080
+      LOG_FORMAT: json
+      OHTTP_ENABLED: "true"
+      OHTTP_KEY: ${STRK20_OHTTP_KEY:?set STRK20_OHTTP_KEY}
+      RPC_URL: ${STARKNET_RPC_URL:?set STARKNET_RPC_URL}
+      WS_URL: ${STARKNET_WS_URL:?set STARKNET_WS_URL}
+    ports:
+      - 127.0.0.1:${STRK20_DISCOVERY_PORT:-8080}:8080
+    restart: unless-stopped

@@ -44,6 +44,8 @@ VERIFIED (`vendor/starknet-privacy/sdk/src/internal/indexer-discovery.ts`): The 
 
 INFERRED: Mainnet deployment must use a discovery service that the operator trusts. Self-host the service for the highest confidence. A shared service adds a settlement trust assumption. The current runtime requires that service to support OHTTP.
 
+See `deploy/README.md` for the pinned self-hosted discovery setup.
+
 VERIFIED (`src/private402/server-config.ts`): Mainnet startup requires an HTTPS RPC URL, an HTTPS public origin, a filesystem SQLite path, and L1 finality. The server does not load a payer private key.
 
 INFERRED: A filesystem path is durable only when the deployment stores it on a persistent volume. Mount `STK402_LEDGER_PATH` on persistent storage. An ephemeral container filesystem loses replay protection after restart.
