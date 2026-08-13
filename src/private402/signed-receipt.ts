@@ -183,6 +183,8 @@ export function buildReceiptTypedData(
 function parseReceipt(payload: PaymentPayload): SignedReceipt | null {
   const value = payload.payload;
   if (
+    !value ||
+    typeof value !== "object" ||
     !isFelt(value.invoiceId) ||
     !isFelt(value.transactionHash) ||
     typeof value.payer !== "string" ||

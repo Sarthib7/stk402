@@ -163,6 +163,24 @@ test("rejects an invalid tool request before asking for payment", async () => {
   );
   assert.equal(malformed.status, 400);
   assert.deepEqual(await malformed.json(), { error: "invalid_payment_header" });
+
+  const challenge = await handler(
+    new Request("https://seller.example/tools/sha256?text=stk402"),
+  );
+  const required = decodePaymentRequiredHeader(
+    challenge.headers.get("payment-required")!,
+  );
+  const missingReceipt = await handler(
+    new Request("https://seller.example/tools/sha256?text=stk402", {
+      headers: {
+        "payment-signature": Buffer.from(
+          JSON.stringify({ x402Version: 2, accepted: required.accepts[0] }),
+        ).toString("base64"),
+      },
+    }),
+  );
+  assert.equal(missingReceipt.status, 402);
+  assert.deepEqual(await missingReceipt.json(), { error: "invalid_receipt" });
 });
 
 test("caps outstanding unpaid invoices", async () => {
