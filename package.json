@@ -11,6 +11,7 @@
     "build:sdk": "tsc -p vendor/starknet-privacy/sdk/tsconfig.build.json",
     "check:network": "node --env-file-if-exists=.env --import tsx src/check-network.ts",
     "check:sepolia": "node --env-file-if-exists=.env.sepolia --import tsx src/check-sepolia.ts",
+    "serve:paid": "node --env-file=.env.server --import tsx src/private402/serve.ts",
     "test": "node --import tsx --test \"src/**/*.test.ts\"",
     "test:devnet": "npm run build:contracts:devnet && npm run build:sdk && node --import tsx --test \"test/devnet/*.test.ts\"",
     "typecheck": "tsc --noEmit"

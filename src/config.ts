@@ -80,6 +80,12 @@ export function loadProductionServicesConfig(
   };
 }
 
+export function loadIndexerServiceUrl(
+  environment: NodeJS.ProcessEnv = process.env,
+): string {
+  return httpsServiceUrl(environment, "STRK20_INDEXER_URL");
+}
+
 export function loadNetworkConfig(
   environment: NodeJS.ProcessEnv = process.env,
 ): NetworkConfig {
