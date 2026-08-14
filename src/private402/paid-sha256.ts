@@ -34,6 +34,7 @@ interface PaidSha256Options {
   now?: () => number;
   resourceUrl?: (request: Request) => string;
   maxOutstandingInvoices?: number;
+  invoiceTimeoutSeconds?: number;
 }
 
 interface IssuedInvoice {
@@ -64,8 +65,12 @@ export function createPaidSha256Handler(options: PaidSha256Options) {
   const now = options.now ?? Date.now;
   const resourceUrl = options.resourceUrl ?? ((request: Request) => request.url);
   const maxOutstandingInvoices = options.maxOutstandingInvoices ?? 1_000;
+  const invoiceTimeoutSeconds = options.invoiceTimeoutSeconds ?? 60;
   if (!Number.isSafeInteger(maxOutstandingInvoices) || maxOutstandingInvoices < 1) {
     throw new Error("maxOutstandingInvoices must be a positive safe integer");
+  }
+  if (!Number.isSafeInteger(invoiceTimeoutSeconds) || invoiceTimeoutSeconds < 1) {
+    throw new Error("invoiceTimeoutSeconds must be a positive safe integer");
   }
   const invoices = new Map<string, IssuedInvoice>();
 
@@ -101,6 +106,7 @@ export function createPaidSha256Handler(options: PaidSha256Options) {
         amount: options.amount,
         recipient: options.recipient,
         invoiceId: createInvoiceId(),
+        maxTimeoutSeconds: invoiceTimeoutSeconds,
         resource: {
           url: requestedResource,
           description: "SHA-256 digest",

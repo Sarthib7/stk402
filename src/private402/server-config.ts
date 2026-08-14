@@ -25,6 +25,7 @@ export interface PaidServerConfig {
   port: number;
   requiredFinality: RequiredFinality;
   maxOutstandingInvoices: number;
+  invoiceTimeoutSeconds: number;
 }
 
 function required(environment: NodeJS.ProcessEnv, name: string): string {
@@ -132,11 +133,16 @@ export function loadPaidServerConfig(
     publicOrigin,
     host: environment.STK402_HOST?.trim() || "127.0.0.1",
     port,
-    requiredFinality: network.network === "mainnet" ? "l1" : "l2",
+    requiredFinality: "l2",
     maxOutstandingInvoices: positiveSafeInteger(
       environment,
       "STK402_MAX_OUTSTANDING_INVOICES",
       1_000,
+    ),
+    invoiceTimeoutSeconds: positiveSafeInteger(
+      environment,
+      "STK402_INVOICE_TIMEOUT_SECONDS",
+      900,
     ),
   };
 }

@@ -31,6 +31,7 @@ function config(ledgerPath: string): PaidServerConfig {
     port: 3402,
     requiredFinality: "l2",
     maxOutstandingInvoices: 10,
+    invoiceTimeoutSeconds: 900,
   };
 }
 
@@ -79,6 +80,7 @@ test("composes SQLite and the paid route", async () => {
       challenge.resource.url,
       "https://seller.example/tools/sha256?text=stk402",
     );
+    assert.equal(challenge.accepts[0]?.maxTimeoutSeconds, 900);
     assert.equal(readFileSync(ledgerPath).subarray(0, 15).toString(), "SQLite format 3");
   } finally {
     runtime.close();

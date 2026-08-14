@@ -47,10 +47,17 @@ export function createPrivatePaymentRequired(input: {
   amount: bigint;
   recipient: string;
   invoiceId: string;
+  maxTimeoutSeconds: number;
   resource: ResourceInfo;
 }): PaymentRequired {
   if (input.amount <= 0n || input.amount >= 2n ** 128n) {
     throw new Error("amount must be a positive u128");
+  }
+  if (
+    !Number.isSafeInteger(input.maxTimeoutSeconds) ||
+    input.maxTimeoutSeconds < 1
+  ) {
+    throw new Error("maxTimeoutSeconds must be a positive safe integer");
   }
 
   const requirements: PaymentRequirements = {
@@ -59,7 +66,7 @@ export function createPrivatePaymentRequired(input: {
     asset: address(input.token),
     amount: input.amount.toString(),
     payTo: address(input.recipient),
-    maxTimeoutSeconds: 60,
+    maxTimeoutSeconds: input.maxTimeoutSeconds,
     extra: { invoiceId: num.toHex(input.invoiceId) },
   };
   chainId(input.network);

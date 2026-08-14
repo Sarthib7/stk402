@@ -267,12 +267,14 @@ test("binds an invoice to its request and expiry", async () => {
     facilitator: testFacilitator(),
     createInvoiceId: () => "0x555",
     now: () => now,
+    invoiceTimeoutSeconds: 2,
   });
   const originalUrl = "https://seller.example/tools/sha256?text=stk402";
   const unpaid = await handler(new Request(originalUrl));
   const paymentRequired = decodePaymentRequiredHeader(
     unpaid.headers.get("payment-required")!,
   );
+  assert.equal(paymentRequired.accepts[0]?.maxTimeoutSeconds, 2);
   const signer = new Signer(privateKey);
   const payment = await new x402Client()
     .register(
@@ -302,7 +304,7 @@ test("binds an invoice to its request and expiry", async () => {
   assert.equal(wrongRequest.status, 400);
   assert.deepEqual(await wrongRequest.json(), { error: "invoice_mismatch" });
 
-  now += 60_001;
+  now += 2_001;
   const expired = await handler(
     new Request(originalUrl, {
       headers: { "payment-signature": signature },

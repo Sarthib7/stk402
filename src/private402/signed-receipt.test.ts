@@ -102,6 +102,7 @@ test("creates an x402 payment payload from a private payment requirement", async
     amount: 50n,
     recipient,
     invoiceId,
+    maxTimeoutSeconds: 900,
     resource: { url: "https://seller.example/private-data" },
   });
   const client = new x402Client().register(

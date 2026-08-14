@@ -59,6 +59,7 @@ export async function createPaidServerRuntime(
     recipient: config.recipient,
     facilitator,
     maxOutstandingInvoices: config.maxOutstandingInvoices,
+    invoiceTimeoutSeconds: config.invoiceTimeoutSeconds,
     resourceUrl: (request) =>
       publicResourceUrl(request.url, config.publicOrigin),
   });

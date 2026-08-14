@@ -30,6 +30,7 @@ test("loads a Sepolia paid server with L2 finality", () => {
   assert.equal(config.publicOrigin.toString(), "https://seller.example/");
   assert.equal(config.port, 3402);
   assert.equal(config.amount, 50n);
+  assert.equal(config.invoiceTimeoutSeconds, 900);
 });
 
 test("confines resource URLs to the configured public origin", () => {
@@ -42,11 +43,37 @@ test("confines resource URLs to the configured public origin", () => {
   );
 });
 
-test("forces L1 finality on Mainnet", () => {
+test("uses L2 finality on Mainnet", () => {
   const config = loadPaidServerConfig(environment("mainnet"));
 
   assert.equal(config.x402Network, "starknet:SN_MAIN");
-  assert.equal(config.requiredFinality, "l1");
+  assert.equal(config.requiredFinality, "l2");
+});
+
+test("loads and validates a custom invoice timeout", () => {
+  assert.equal(
+    loadPaidServerConfig({
+      ...environment(),
+      STK402_INVOICE_TIMEOUT_SECONDS: "1800",
+    }).invoiceTimeoutSeconds,
+    1800,
+  );
+  assert.throws(
+    () =>
+      loadPaidServerConfig({
+        ...environment(),
+        STK402_INVOICE_TIMEOUT_SECONDS: "0",
+      }),
+    /positive safe integer/,
+  );
+  assert.throws(
+    () =>
+      loadPaidServerConfig({
+        ...environment(),
+        STK402_INVOICE_TIMEOUT_SECONDS: "1.5",
+      }),
+    /positive safe integer/,
+  );
 });
 
 test("rejects an RPC for another Starknet network", () => {
