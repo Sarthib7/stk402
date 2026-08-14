@@ -94,7 +94,10 @@ test("deposits STRK and transfers it privately on Devnet", { timeout: 120_000 },
       amount: "50",
       payTo: env.bob.address,
       maxTimeoutSeconds: 60,
-      extra: { invoiceId: "0x402" },
+      extra: {
+        invoiceId: "0x402",
+        expiresAt: (Date.now() + 60_000).toString(),
+      },
     };
     const signature = stark.signatureToHexArray(
       await env.alice.signMessage(
@@ -144,8 +147,8 @@ test("deposits STRK and transfers it privately on Devnet", { timeout: 120_000 },
     assert.equal(settled.success, true);
 
     const replay = await facilitator.settle(payload, requirements);
-    assert.equal(replay.success, false);
-    assert.equal(replay.errorReason, "transaction_used");
+    assert.equal(replay.success, true);
+    assert.equal(replay.transaction, transactionHash);
   } finally {
     await indexer?.shutdown();
     await devnet.cleanup();
