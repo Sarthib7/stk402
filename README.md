@@ -147,6 +147,29 @@ npm run pay:recover
 
 VERIFIED (`src/private402/payment-recovery.ts`): Recovery refuses to clear a session that has a payer journal entry. An existing attempt needs chain reconciliation. Do not delete the SQLite file to bypass this check.
 
+### Agent SDK and MCP
+
+Import the Agent Payer surface from the package root:
+
+```ts
+import { payResource, runPayer, loadPayerConfig } from "stk402";
+```
+
+Run the MCP server (stdio) with payer env loaded:
+
+```sh
+npm run mcp:serve
+```
+
+Tools: `stk402_check_network`, `stk402_fund_payer`, `stk402_pay_resource`.
+
+Mainnet agent settle still needs hosted proving and discovery URLs. Check status without guessing endpoints:
+
+```sh
+cp .env.mainnet.example .env.mainnet
+npm run check:mainnet
+```
+
 ## Safety model
 
 ### Payment checks
