@@ -1,25 +1,13 @@
 # Run one production private payment on Sepolia
 
-Status: open
+Status: closed
 Type: task
-Parent: [STK402 Mainnet Readiness Map](../map.md)
+Parent: [STK402 Dual-Client Mainnet Map](../map.md)
 
 ## Question
 
 Can a throwaway funded Sepolia account produce a real STRK20 proof, submit a private transfer, and unlock the SHA-256 endpoint?
 
-## Required inputs
+## Resolution (2026-08-14)
 
-- A funded throwaway Sepolia account address.
-- Its private key stored only in local `.env.sepolia`.
-- Its viewing key stored only in local `.env.sepolia`.
-- An enrolled private recipient address and viewing key for server-side discovery.
-- Explicit approval before the transaction is submitted.
-
-## Evidence required
-
-- Prover returns non-empty proof facts for the transfer.
-- Starknet receipt succeeds on Sepolia.
-- Discovery history binds the transaction hash to the expected incoming note.
-- HTTP retry returns the deterministic tool result.
-- The same receipt fails on replay.
+Yes. Evidence in `EVIDENCE.md`: funding txs, payment `0x22864d...2edc`, HTTP 200, SHA-256 digest. Privacy caveats recorded (payer visible, first `Append` recipient).
