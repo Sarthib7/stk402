@@ -1,4 +1,5 @@
 import { validateAndParseAddress } from "starknet";
+import { createPublicKey, type KeyObject } from "node:crypto";
 
 import {
   loadNetworkConfig,
@@ -6,6 +7,12 @@ import {
   type NetworkName,
 } from "../config.js";
 import { STRK_TOKEN_ADDRESS } from "./agent-payer.js";
+import {
+  envelopeKeyId,
+  parseEnvelopePrivateKey,
+  parseEnvelopePublicKey,
+  type ClientEnvelopeKey,
+} from "./private-envelope.js";
 
 export interface PayerRuntimeConfig {
   network: Exclude<NetworkName, "devnet">;
@@ -30,6 +37,8 @@ export interface PayerConfig extends PayerRuntimeConfig {
   dailySpendLimit: bigint;
   minimumInvoiceValidityMs: number;
   allowedClockSkewMs: number;
+  envelopePublicKey: KeyObject;
+  clientEnvelopeKey: ClientEnvelopeKey;
 }
 
 export interface FundingConfig extends PayerRuntimeConfig {
@@ -116,6 +125,20 @@ export function loadPayerConfig(
   environment: NodeJS.ProcessEnv = process.env,
 ): PayerConfig {
   const base = loadPayerRuntimeConfig(environment);
+  const clientPublicKeyValue = required(
+    environment,
+    "STK402_CLIENT_ENVELOPE_PUBLIC_KEY",
+  );
+  const clientPublicKey = parseEnvelopePublicKey(clientPublicKeyValue);
+  const clientPrivateKey = parseEnvelopePrivateKey(
+    required(environment, "STK402_CLIENT_ENVELOPE_PRIVATE_KEY"),
+  );
+  if (
+    envelopeKeyId(createPublicKey(clientPrivateKey)) !==
+    envelopeKeyId(clientPublicKey)
+  ) {
+    throw new Error("STK402 client envelope keys do not match");
+  }
   return {
     ...base,
     resourceUrl: httpsResource(environment),
@@ -135,6 +158,14 @@ export function loadPayerConfig(
       30_000,
       true,
     ),
+    envelopePublicKey: parseEnvelopePublicKey(
+      required(environment, "STK402_ENVELOPE_PUBLIC_KEY"),
+    ),
+    clientEnvelopeKey: {
+      publicKeyHeader: clientPublicKeyValue,
+      publicKey: clientPublicKey,
+      privateKey: clientPrivateKey,
+    },
   };
 }
 

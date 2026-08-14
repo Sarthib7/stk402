@@ -102,6 +102,9 @@ export async function runPayer(config: PayerConfig): Promise<PaidResourceResult>
       config.x402Network,
       receiptCreator,
       sessions,
+      undefined,
+      config.envelopePublicKey,
+      config.clientEnvelopeKey,
     );
   } finally {
     journal.close();

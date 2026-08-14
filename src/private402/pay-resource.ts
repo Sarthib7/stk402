@@ -1,11 +1,21 @@
 import { x402Client, x402HTTPClient } from "@x402/core/client";
 import type { SettleResponse } from "@x402/core/types";
+import { decodePaymentRequiredHeader } from "@x402/core/http";
+import type { KeyObject } from "node:crypto";
 
 import {
+  PrivateEnvelopeClient,
   PrivateExactClient,
   type PrivateReceiptCreator,
 } from "./signed-receipt.js";
 import type { PaymentSessionStore } from "./payment-session.js";
+import {
+  CLIENT_KEY_HEADER,
+  PRIVATE_ENVELOPE_SCHEME,
+  openPaymentTerms,
+  type ClientEnvelopeKey,
+  type SealedValue,
+} from "./private-envelope.js";
 
 export interface PaidResourceResult {
   status: number;
@@ -26,26 +36,61 @@ export async function payResource(
   receiptCreator: PrivateReceiptCreator,
   sessions: PaymentSessionStore,
   fetcher: typeof fetch = fetch,
+  serverEnvelopePublicKey?: KeyObject,
+  clientEnvelopeKey?: ClientEnvelopeKey,
 ): Promise<PaidResourceResult> {
-  const client = new x402HTTPClient(
-    new x402Client().register(network, new PrivateExactClient(receiptCreator)),
-  );
   let session = sessions.load(resourceUrl);
   if (session?.state === "completed") return session.result;
   if (!session) {
-    const unpaid = await fetcher(resourceUrl, { redirect: "error" });
+    if (serverEnvelopePublicKey && !clientEnvelopeKey) {
+      throw new Error("client envelope key is required");
+    }
+    const clientKey = serverEnvelopePublicKey ? clientEnvelopeKey! : null;
+    const unpaid = await fetcher(resourceUrl, {
+      redirect: "error",
+      ...(clientKey
+        ? { headers: { [CLIENT_KEY_HEADER]: clientKey.publicKeyHeader } }
+        : {}),
+    });
     if (unpaid.status !== 402) {
       throw new Error(`resource returned ${unpaid.status} before payment`);
     }
-    const unpaidBody = await responseBody(unpaid);
-    const candidate = client.getPaymentRequiredResponse(
-      (name) => unpaid.headers.get(name),
-      unpaidBody,
-    );
+    await responseBody(unpaid);
+    const paymentRequiredHeader = unpaid.headers.get("payment-required");
+    if (!paymentRequiredHeader) throw new Error("payment challenge is missing");
+    const candidate = decodePaymentRequiredHeader(paymentRequiredHeader);
     if (new URL(candidate.resource.url).toString() !== resourceUrl) {
       throw new Error("payment challenge resource mismatch");
     }
-    session = sessions.claim(resourceUrl, candidate);
+    let privateRequirements;
+    if (serverEnvelopePublicKey && clientKey) {
+      const publicRequirements = candidate.accepts[0];
+      const invoiceId = publicRequirements?.extra.invoiceId;
+      const expiresAt = publicRequirements?.extra.expiresAt;
+      if (
+        !publicRequirements ||
+        publicRequirements.scheme !== PRIVATE_ENVELOPE_SCHEME ||
+        typeof invoiceId !== "string" ||
+        typeof expiresAt !== "string"
+      ) {
+        throw new Error("invalid encrypted payment challenge");
+      }
+      privateRequirements = openPaymentTerms(
+        publicRequirements.extra.terms as unknown as SealedValue,
+        {
+          invoiceId,
+          resourceUrl,
+          network: publicRequirements.network,
+          asset: publicRequirements.asset,
+          maxTimeoutSeconds: publicRequirements.maxTimeoutSeconds,
+          expiresAt,
+          clientPublicKey: clientKey.publicKeyHeader,
+        },
+        clientKey.privateKey,
+        serverEnvelopePublicKey,
+      );
+    }
+    session = sessions.claim(resourceUrl, candidate, privateRequirements);
     if (session.state === "completed") return session.result;
   }
   const paymentRequired = session.paymentRequired;
@@ -53,6 +98,19 @@ export async function payResource(
     throw new Error("payment challenge resource mismatch");
   }
 
+  const scheme = paymentRequired.accepts[0]?.scheme;
+  const schemeClient =
+    scheme === PRIVATE_ENVELOPE_SCHEME && session.privateRequirements && serverEnvelopePublicKey
+      ? new PrivateEnvelopeClient(
+          receiptCreator,
+          session.privateRequirements,
+          resourceUrl,
+          serverEnvelopePublicKey,
+        )
+      : new PrivateExactClient(receiptCreator);
+  const client = new x402HTTPClient(
+    new x402Client().register(network, schemeClient),
+  );
   const payment = await client.createPaymentPayload(paymentRequired);
   const paid = await fetcher(resourceUrl, {
     redirect: "error",

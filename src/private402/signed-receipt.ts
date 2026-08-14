@@ -11,6 +11,12 @@ import type {
 } from "@x402/core/types";
 import type { ArraySignatureType, Signature, TypedData } from "starknet";
 import { num, validateAndParseAddress } from "starknet";
+import type { KeyObject } from "node:crypto";
+
+import {
+  PRIVATE_ENVELOPE_SCHEME,
+  sealReceipt,
+} from "./private-envelope.js";
 
 export const PRIVATE_EXACT_SCHEME = "exact-private";
 
@@ -37,6 +43,58 @@ export class PrivateExactClient implements SchemeNetworkClient {
     return {
       x402Version,
       payload: await this.receiptCreator.createReceipt(requirements),
+    };
+  }
+}
+
+export class PrivateEnvelopeClient implements SchemeNetworkClient {
+  readonly scheme = PRIVATE_ENVELOPE_SCHEME;
+
+  constructor(
+    private readonly receiptCreator: PrivateReceiptCreator,
+    private readonly privateRequirements: PaymentRequirements,
+    private readonly resourceUrl: string,
+    private readonly serverPublicKey: KeyObject,
+  ) {}
+
+  async createPaymentPayload(
+    x402Version: number,
+    publicRequirements: PaymentRequirements,
+  ): Promise<{ x402Version: number; payload: Record<string, unknown> }> {
+    const invoiceId = publicRequirements.extra.invoiceId;
+    const expiresAt = publicRequirements.extra.expiresAt;
+    if (
+      publicRequirements.scheme !== PRIVATE_ENVELOPE_SCHEME ||
+      typeof invoiceId !== "string" ||
+      typeof expiresAt !== "string" ||
+      invoiceId !== this.privateRequirements.extra.invoiceId ||
+      expiresAt !== this.privateRequirements.extra.expiresAt ||
+      publicRequirements.network !== this.privateRequirements.network ||
+      publicRequirements.asset !== this.privateRequirements.asset ||
+      publicRequirements.maxTimeoutSeconds !==
+        this.privateRequirements.maxTimeoutSeconds ||
+      publicRequirements.amount !== "0" ||
+      publicRequirements.payTo !== "0x0"
+    ) {
+      throw new Error("payment envelope mismatch");
+    }
+    const receipt = await this.receiptCreator.createReceipt(
+      this.privateRequirements,
+    );
+    return {
+      x402Version,
+      payload: sealReceipt(
+        receipt,
+        {
+          invoiceId,
+          resourceUrl: this.resourceUrl,
+          network: publicRequirements.network,
+          asset: publicRequirements.asset,
+          maxTimeoutSeconds: publicRequirements.maxTimeoutSeconds,
+          expiresAt,
+        },
+        this.serverPublicKey,
+      ) as unknown as Record<string, unknown>,
     };
   }
 }

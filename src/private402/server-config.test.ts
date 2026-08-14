@@ -6,6 +6,10 @@ import {
   loadPaidServerConfig,
   publicResourceUrl,
 } from "./server-config.js";
+import { generateServerEnvelopeKey } from "./private-envelope.js";
+
+const envelope = generateServerEnvelopeKey();
+const clientEnvelope = generateServerEnvelopeKey();
 
 function environment(network: "sepolia" | "mainnet" = "sepolia") {
   return {
@@ -19,6 +23,10 @@ function environment(network: "sepolia" | "mainnet" = "sepolia") {
     STK402_PAYMENT_AMOUNT: "50",
     STK402_LEDGER_PATH: "./data/claims.sqlite",
     STK402_PUBLIC_ORIGIN: "https://seller.example/base?ignored=true",
+    STK402_ENVELOPE_PRIVATE_KEY: envelope.privateKeyValue,
+    STK402_ENVELOPE_PUBLIC_KEY: envelope.publicKeyValue,
+    STK402_AUTHORIZED_CLIENT_ENVELOPE_PUBLIC_KEY:
+      clientEnvelope.publicKeyValue,
   } satisfies NodeJS.ProcessEnv;
 }
 
@@ -103,5 +111,14 @@ test("rejects memory-only replay storage and insecure origins", () => {
   assert.throws(
     () => loadPaidServerConfig({ ...environment(), STK402_PORT: "65536" }),
     /at most 65535/,
+  );
+  assert.throws(
+    () =>
+      loadPaidServerConfig({
+        ...environment(),
+        STK402_ENVELOPE_PRIVATE_KEY:
+          generateServerEnvelopeKey().privateKeyValue,
+      }),
+    /keys do not match/,
   );
 });

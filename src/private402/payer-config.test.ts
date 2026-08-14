@@ -6,6 +6,10 @@ import {
   loadPayerConfig,
   STRK_TOKEN_ADDRESS,
 } from "./payer-config.js";
+import { generateServerEnvelopeKey } from "./private-envelope.js";
+
+const envelope = generateServerEnvelopeKey();
+const clientEnvelope = generateServerEnvelopeKey();
 
 function environment(): NodeJS.ProcessEnv {
   return {
@@ -25,6 +29,9 @@ function environment(): NodeJS.ProcessEnv {
     STK402_MAX_NETWORK_FEE: "20",
     STK402_DAILY_SPEND_LIMIT: "500",
     STK402_PAYER_STATE_PATH: "./data/payer.sqlite",
+    STK402_ENVELOPE_PUBLIC_KEY: envelope.publicKeyValue,
+    STK402_CLIENT_ENVELOPE_PRIVATE_KEY: clientEnvelope.privateKeyValue,
+    STK402_CLIENT_ENVELOPE_PUBLIC_KEY: clientEnvelope.publicKeyValue,
   };
 }
 
@@ -75,6 +82,15 @@ test("rejects unsafe payer policy and secret placeholders", () => {
         STK402_DAILY_SPEND_LIMIT: "0",
       }),
     /u128 range/,
+  );
+  assert.throws(
+    () =>
+      loadPayerConfig({
+        ...environment(),
+        STK402_CLIENT_ENVELOPE_PRIVATE_KEY:
+          generateServerEnvelopeKey().privateKeyValue,
+      }),
+    /keys do not match/,
   );
 });
 

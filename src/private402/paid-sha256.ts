@@ -11,6 +11,7 @@ import type {
   PaymentRequirements,
   SettleResponse,
 } from "@x402/core/types";
+import type { KeyObject } from "node:crypto";
 
 import {
   PRIVATE_EXACT_SCHEME,
@@ -20,6 +21,14 @@ import {
   InMemoryInvoiceStore,
   type InvoiceStore,
 } from "./invoice-store.js";
+import {
+  CLIENT_KEY_HEADER,
+  PRIVATE_ENVELOPE_SCHEME,
+  openReceipt,
+  parseEnvelopePublicKey,
+  sealPaymentTerms,
+  type SealedReceipt,
+} from "./private-envelope.js";
 
 interface PaymentSettler {
   settle(
@@ -42,6 +51,9 @@ interface PaidSha256Options {
   settlementLeaseMs?: number;
   invoiceStore?: InvoiceStore;
   acceptedTransaction?: (invoiceId: string) => string | null;
+  serverEnvelopePrivateKey?: KeyObject;
+  serverEnvelopePublicKey?: KeyObject;
+  authorizedClientEnvelopePublicKey?: string;
 }
 
 function sameFelt(left: string, right: string): boolean {
@@ -58,6 +70,15 @@ function json(
   headers?: Headers | Record<string, string>,
 ): Response {
   return Response.json(body, headers ? { status, headers } : { status });
+}
+
+function redactEncryptedSettlement(
+  settlement: SettleResponse,
+  encrypted: boolean,
+): SettleResponse {
+  if (!encrypted) return settlement;
+  const { payer: _payer, amount: _amount, ...publicSettlement } = settlement;
+  return { ...publicSettlement, transaction: "" };
 }
 
 export function createPaidSha256Handler(options: PaidSha256Options) {
@@ -79,6 +100,18 @@ export function createPaidSha256Handler(options: PaidSha256Options) {
   }
   const invoices = options.invoiceStore ?? new InMemoryInvoiceStore();
   const acceptedTransaction = options.acceptedTransaction ?? (() => null);
+  if (
+    Boolean(options.serverEnvelopePrivateKey) !==
+    Boolean(options.serverEnvelopePublicKey)
+  ) {
+    throw new Error("both server envelope keys are required");
+  }
+  if (
+    options.serverEnvelopePrivateKey &&
+    !options.authorizedClientEnvelopePublicKey
+  ) {
+    throw new Error("authorized client envelope key is required");
+  }
 
   return async function handle(request: Request): Promise<Response> {
     if (request.method !== "GET") {
@@ -105,7 +138,7 @@ export function createPaidSha256Handler(options: PaidSha256Options) {
         });
       }
       const expiresAt = issuedAt + invoiceTimeoutSeconds * 1_000;
-      const paymentRequired = createPrivatePaymentRequired({
+      const privatePaymentRequired = createPrivatePaymentRequired({
         network: options.network,
         token: options.token,
         amount: options.amount,
@@ -119,15 +152,69 @@ export function createPaidSha256Handler(options: PaidSha256Options) {
           mimeType: "application/json",
         },
       });
-      const requirements = paymentRequired.accepts[0]!;
+      const requirements = privatePaymentRequired.accepts[0]!;
+      let paymentRequired = privatePaymentRequired;
+      let publicRequirements: PaymentRequirements | undefined;
+      if (options.serverEnvelopePrivateKey && options.serverEnvelopePublicKey) {
+        const clientKeyValue = request.headers.get(CLIENT_KEY_HEADER);
+        if (!clientKeyValue) {
+          return json({ error: "missing_client_encryption_key" }, 400);
+        }
+        let clientPublicKey: KeyObject;
+        try {
+          clientPublicKey = parseEnvelopePublicKey(clientKeyValue);
+        } catch {
+          return json({ error: "invalid_client_encryption_key" }, 400);
+        }
+        if (clientKeyValue !== options.authorizedClientEnvelopePublicKey) {
+          return json({ error: "invalid_client_encryption_key" }, 403);
+        }
+        const invoiceId = requirements.extra.invoiceId as string;
+        const invoiceExpiry = requirements.extra.expiresAt as string;
+        const terms = sealPaymentTerms(
+          requirements,
+          {
+            invoiceId,
+            resourceUrl: requestedResource,
+            network: requirements.network,
+            asset: requirements.asset,
+            maxTimeoutSeconds: requirements.maxTimeoutSeconds,
+            expiresAt: invoiceExpiry,
+            clientPublicKey: clientKeyValue,
+          },
+          options.serverEnvelopePrivateKey,
+          clientPublicKey,
+          options.serverEnvelopePublicKey,
+        );
+        publicRequirements = {
+          scheme: PRIVATE_ENVELOPE_SCHEME,
+          network: requirements.network,
+          asset: requirements.asset,
+          amount: "0",
+          payTo: "0x0",
+          maxTimeoutSeconds: requirements.maxTimeoutSeconds,
+          extra: { invoiceId, expiresAt: invoiceExpiry, terms },
+        };
+        paymentRequired = {
+          ...privatePaymentRequired,
+          accepts: [publicRequirements],
+        };
+      }
       const issuedInvoice = requirements.extra.invoiceId as string;
       invoices.issue(issuedInvoice, {
         requirements,
+        ...(publicRequirements ? { publicRequirements } : {}),
         requestUrl: requestedResource,
         expiresAt,
       });
       return json({ error: "payment_required" }, 402, {
         "payment-required": encodePaymentRequiredHeader(paymentRequired),
+        ...(publicRequirements
+          ? {
+              "cache-control": "private, no-store",
+              vary: CLIENT_KEY_HEADER,
+            }
+          : {}),
       });
     }
 
@@ -160,7 +247,38 @@ export function createPaidSha256Handler(options: PaidSha256Options) {
     if (requestedResource !== invoice.requestUrl) {
       return json({ error: "invoice_mismatch" }, 400);
     }
-    const receiptValue = payload.payload;
+    const requirements = invoice.requirements;
+    const expectedPublic = invoice.publicRequirements ?? requirements;
+    let settlementPayload = payload;
+    if (expectedPublic.scheme === PRIVATE_ENVELOPE_SCHEME) {
+      if (!options.serverEnvelopePrivateKey || !options.serverEnvelopePublicKey) {
+        return json({ error: "invalid_receipt" }, 402);
+      }
+      try {
+        const invoiceExpiry = requirements.extra.expiresAt as string;
+        const receipt = openReceipt(
+          payload.payload as unknown as SealedReceipt,
+          {
+            invoiceId: claimedInvoice,
+            resourceUrl: requestedResource,
+            network: expectedPublic.network,
+            asset: expectedPublic.asset,
+            maxTimeoutSeconds: expectedPublic.maxTimeoutSeconds,
+            expiresAt: invoiceExpiry,
+          },
+          options.serverEnvelopePrivateKey,
+          options.serverEnvelopePublicKey,
+        );
+        settlementPayload = {
+          x402Version: payload.x402Version,
+          accepted: requirements,
+          payload: receipt as Record<string, unknown>,
+        };
+      } catch {
+        return json({ error: "invalid_receipt" }, 402);
+      }
+    }
+    const receiptValue = settlementPayload.payload;
     const claimedTransaction =
       receiptValue &&
       typeof receiptValue === "object" &&
@@ -179,16 +297,17 @@ export function createPaidSha256Handler(options: PaidSha256Options) {
     ) {
       return json({ error: "invoice_expired" }, 400);
     }
-    const requirements = invoice.requirements;
     if (
       payload.x402Version !== 2 ||
-      accepted.scheme !== requirements.scheme ||
-      accepted.network !== requirements.network ||
-      accepted.amount !== requirements.amount ||
-      accepted.maxTimeoutSeconds !== requirements.maxTimeoutSeconds ||
-      accepted.extra.expiresAt !== requirements.extra.expiresAt ||
-      !sameFelt(accepted.asset, requirements.asset) ||
-      !sameFelt(accepted.payTo, requirements.payTo)
+      accepted.scheme !== expectedPublic.scheme ||
+      accepted.network !== expectedPublic.network ||
+      accepted.amount !== expectedPublic.amount ||
+      accepted.maxTimeoutSeconds !== expectedPublic.maxTimeoutSeconds ||
+      accepted.extra.expiresAt !== expectedPublic.extra.expiresAt ||
+      JSON.stringify(accepted.extra.terms ?? null) !==
+        JSON.stringify(expectedPublic.extra.terms ?? null) ||
+      !sameFelt(accepted.asset, expectedPublic.asset) ||
+      !sameFelt(accepted.payTo, expectedPublic.payTo)
     ) {
       return json({ error: "payment_requirements_mismatch" }, 400);
     }
@@ -223,7 +342,10 @@ export function createPaidSha256Handler(options: PaidSha256Options) {
 
     let settlement: SettleResponse;
     try {
-      settlement = await options.facilitator.settle(payload, requirements);
+      settlement = await options.facilitator.settle(
+        settlementPayload,
+        requirements,
+      );
     } catch (error) {
       if (settlementStarted) {
         invoices.failSettlement(claimedInvoice, settlementLeaseId!, now());
@@ -235,7 +357,12 @@ export function createPaidSha256Handler(options: PaidSha256Options) {
         invoices.failSettlement(claimedInvoice, settlementLeaseId!, now());
       }
       return json({ error: settlement.errorReason ?? "settlement_failed" }, 402, {
-        "payment-response": encodePaymentResponseHeader(settlement),
+        "payment-response": encodePaymentResponseHeader(
+          redactEncryptedSettlement(
+            settlement,
+            expectedPublic.scheme === PRIVATE_ENVELOPE_SCHEME,
+          ),
+        ),
       });
     }
     invoices.acceptSettlement(claimedInvoice);
@@ -245,7 +372,14 @@ export function createPaidSha256Handler(options: PaidSha256Options) {
         digest: createHash("sha256").update(text).digest("hex"),
       },
       200,
-      { "payment-response": encodePaymentResponseHeader(settlement) },
+      {
+        "payment-response": encodePaymentResponseHeader(
+          redactEncryptedSettlement(
+            settlement,
+            expectedPublic.scheme === PRIVATE_ENVELOPE_SCHEME,
+          ),
+        ),
+      },
     );
   };
 }

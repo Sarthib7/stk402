@@ -67,6 +67,10 @@ export async function createPaidServerRuntime(
       ledger.transactionForInvoice(invoiceId),
     resourceUrl: (request) =>
       publicResourceUrl(request.url, config.publicOrigin),
+    serverEnvelopePrivateKey: config.envelopePrivateKey,
+    serverEnvelopePublicKey: config.envelopePublicKey,
+    authorizedClientEnvelopePublicKey:
+      config.authorizedClientEnvelopePublicKey,
   });
 
   return {

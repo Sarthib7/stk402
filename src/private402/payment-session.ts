@@ -1,15 +1,23 @@
-import type { PaymentRequired } from "@x402/core/types";
+import type { PaymentRequired, PaymentRequirements } from "@x402/core/types";
 import { DatabaseSync } from "node:sqlite";
 
 import type { PaidResourceResult } from "./pay-resource.js";
 
 export type PaymentSession =
-  | { state: "pending"; paymentRequired: PaymentRequired }
+  | {
+      state: "pending";
+      paymentRequired: PaymentRequired;
+      privateRequirements?: PaymentRequirements;
+    }
   | { state: "completed"; result: PaidResourceResult };
 
 export interface PaymentSessionStore {
   load(resourceUrl: string): PaymentSession | null;
-  claim(resourceUrl: string, paymentRequired: PaymentRequired): PaymentSession;
+  claim(
+    resourceUrl: string,
+    paymentRequired: PaymentRequired,
+    privateRequirements?: PaymentRequirements,
+  ): PaymentSession;
   complete(resourceUrl: string, result: PaidResourceResult): void;
   clearPending(resourceUrl: string): void;
   acknowledge(resourceUrl: string): void;
@@ -41,20 +49,42 @@ export class SqlitePaymentSessionStore implements PaymentSessionStore {
       if (!value || typeof value !== "object") {
         throw new Error("invalid payment session");
       }
+      const pending = value as {
+        paymentRequired?: PaymentRequired;
+        privateRequirements?: PaymentRequirements;
+      };
       return row.state === "pending"
-        ? { state: "pending", paymentRequired: value as PaymentRequired }
+        ? pending.paymentRequired
+          ? {
+              state: "pending",
+              paymentRequired: pending.paymentRequired,
+              ...(pending.privateRequirements
+                ? { privateRequirements: pending.privateRequirements }
+                : {}),
+            }
+          : { state: "pending", paymentRequired: value as PaymentRequired }
         : { state: "completed", result: value as PaidResourceResult };
     } catch (error) {
       throw new Error("stored payment session is invalid", { cause: error });
     }
   }
 
-  claim(resourceUrl: string, paymentRequired: PaymentRequired): PaymentSession {
+  claim(
+    resourceUrl: string,
+    paymentRequired: PaymentRequired,
+    privateRequirements?: PaymentRequirements,
+  ): PaymentSession {
     this.database
       .prepare(
         "INSERT OR IGNORE INTO payment_sessions (resource_url, state, value) VALUES (?, 'pending', ?)",
       )
-      .run(resourceUrl, JSON.stringify(paymentRequired));
+      .run(
+        resourceUrl,
+        JSON.stringify({
+          paymentRequired,
+          ...(privateRequirements ? { privateRequirements } : {}),
+        }),
+      );
     const session = this.load(resourceUrl);
     if (!session) throw new Error("failed to persist payment session");
     return session;

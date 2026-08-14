@@ -15,6 +15,7 @@
     "pay:recover": "node --env-file=.env.payer --import tsx src/private402/recover-payment.ts",
     "pay:ack": "node --env-file=.env.payer --import tsx src/private402/ack-payment.ts",
     "fund:payer": "node --env-file=.env.payer --import tsx src/private402/fund.ts",
+    "keys:envelope": "node --import tsx src/private402/generate-envelope-keys.ts",
     "serve:paid": "node --env-file=.env.server --import tsx src/private402/serve.ts",
     "test": "node --import tsx --test \"src/**/*.test.ts\"",
     "test:devnet": "npm run build:contracts:devnet && npm run build:sdk && node --import tsx --test --test-concurrency=1 \"test/devnet/*.test.ts\"",

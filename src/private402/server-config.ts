@@ -1,4 +1,5 @@
 import type { Network } from "@x402/core/types";
+import { createPublicKey, type KeyObject } from "node:crypto";
 import { validateAndParseAddress } from "starknet";
 
 import {
@@ -7,6 +8,11 @@ import {
   type NetworkName,
 } from "../config.js";
 import type { RequiredFinality } from "./rpc-finality.js";
+import {
+  envelopeKeyId,
+  parseEnvelopePrivateKey,
+  parseEnvelopePublicKey,
+} from "./private-envelope.js";
 
 export interface PaidServerConfig {
   network: Exclude<NetworkName, "devnet">;
@@ -26,6 +32,9 @@ export interface PaidServerConfig {
   requiredFinality: RequiredFinality;
   maxOutstandingInvoices: number;
   invoiceTimeoutSeconds: number;
+  envelopePrivateKey: KeyObject;
+  envelopePublicKey: KeyObject;
+  authorizedClientEnvelopePublicKey: string;
 }
 
 function required(environment: NodeJS.ProcessEnv, name: string): string {
@@ -114,6 +123,23 @@ export function loadPaidServerConfig(
 
   const port = positiveSafeInteger(environment, "STK402_PORT", 3402);
   if (port > 65_535) throw new Error("STK402_PORT must be at most 65535");
+  const envelopePrivateKey = parseEnvelopePrivateKey(
+    required(environment, "STK402_ENVELOPE_PRIVATE_KEY"),
+  );
+  const envelopePublicKey = parseEnvelopePublicKey(
+    required(environment, "STK402_ENVELOPE_PUBLIC_KEY"),
+  );
+  const authorizedClientEnvelopePublicKey = required(
+    environment,
+    "STK402_AUTHORIZED_CLIENT_ENVELOPE_PUBLIC_KEY",
+  );
+  parseEnvelopePublicKey(authorizedClientEnvelopePublicKey);
+  if (
+    envelopeKeyId(createPublicKey(envelopePrivateKey)) !==
+    envelopeKeyId(envelopePublicKey)
+  ) {
+    throw new Error("STK402 envelope keys do not match");
+  }
 
   return {
     network: network.network,
@@ -144,5 +170,8 @@ export function loadPaidServerConfig(
       "STK402_INVOICE_TIMEOUT_SECONDS",
       900,
     ),
+    envelopePrivateKey,
+    envelopePublicKey,
+    authorizedClientEnvelopePublicKey,
   };
 }

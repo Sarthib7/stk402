@@ -3,6 +3,7 @@ import { DatabaseSync } from "node:sqlite";
 
 export interface IssuedInvoice {
   requirements: PaymentRequirements;
+  publicRequirements?: PaymentRequirements;
   requestUrl: string;
   expiresAt: number;
 }
@@ -127,6 +128,7 @@ export class SqliteInvoiceStore implements InvoiceStore {
 
   constructor(path: string) {
     this.database = new DatabaseSync(path);
+    this.database.exec("PRAGMA busy_timeout = 5000");
     this.database.exec(`
       CREATE TABLE IF NOT EXISTS issued_invoices (
         invoice_id TEXT PRIMARY KEY,
@@ -139,35 +141,66 @@ export class SqliteInvoiceStore implements InvoiceStore {
         settlement_lease_until INTEGER
       ) STRICT
     `);
+    this.database.exec("BEGIN IMMEDIATE");
+    try {
+      const columns = this.database
+        .prepare("PRAGMA table_info(issued_invoices)")
+        .all() as Array<{ name: string }>;
+      if (!columns.some((column) => column.name === "public_requirements")) {
+        this.database.exec(
+          "ALTER TABLE issued_invoices ADD COLUMN public_requirements TEXT",
+        );
+      }
+      this.database.exec("COMMIT");
+    } catch (error) {
+      if (this.database.isTransaction) this.database.exec("ROLLBACK");
+      throw error;
+    }
   }
 
   issue(invoiceId: string, invoice: IssuedInvoice): void {
     this.database
       .prepare(
-        "INSERT INTO issued_invoices (invoice_id, request_url, expires_at, requirements, state) VALUES (?, ?, ?, ?, 'issued')",
+        "INSERT INTO issued_invoices (invoice_id, request_url, expires_at, requirements, public_requirements, state) VALUES (?, ?, ?, ?, ?, 'issued')",
       )
       .run(
         invoiceId,
         invoice.requestUrl,
         invoice.expiresAt,
         JSON.stringify(invoice.requirements),
+        invoice.publicRequirements
+          ? JSON.stringify(invoice.publicRequirements)
+          : null,
       );
   }
 
   get(invoiceId: string): IssuedInvoice | null {
     const row = this.database
       .prepare(
-        "SELECT request_url, expires_at, requirements FROM issued_invoices WHERE invoice_id = ?",
+        "SELECT request_url, expires_at, requirements, public_requirements FROM issued_invoices WHERE invoice_id = ?",
       )
       .get(invoiceId) as
-      | { request_url: string; expires_at: number; requirements: string }
+      | {
+          request_url: string;
+          expires_at: number;
+          requirements: string;
+          public_requirements: string | null;
+        }
       | undefined;
     if (!row) return null;
     try {
+      const requirements = JSON.parse(row.requirements) as PaymentRequirements;
       return {
         requestUrl: row.request_url,
         expiresAt: row.expires_at,
-        requirements: JSON.parse(row.requirements) as PaymentRequirements,
+        requirements,
+        ...(row.public_requirements
+          ? {
+              publicRequirements: JSON.parse(
+                row.public_requirements,
+              ) as PaymentRequirements,
+            }
+          : {}),
       };
     } catch (error) {
       throw new Error("stored invoice is invalid", { cause: error });

@@ -12,6 +12,10 @@ import type { RpcProvider } from "starknet";
 
 import { createPaidServerRuntime } from "./server-runtime.js";
 import type { PaidServerConfig } from "./server-config.js";
+import { generateServerEnvelopeKey } from "./private-envelope.js";
+
+const envelope = generateServerEnvelopeKey();
+const clientEnvelope = generateServerEnvelopeKey();
 
 function config(ledgerPath: string): PaidServerConfig {
   return {
@@ -32,6 +36,9 @@ function config(ledgerPath: string): PaidServerConfig {
     requiredFinality: "l2",
     maxOutstandingInvoices: 10,
     invoiceTimeoutSeconds: 900,
+    envelopePrivateKey: envelope.privateKey,
+    envelopePublicKey: envelope.publicKey,
+    authorizedClientEnvelopePublicKey: clientEnvelope.publicKeyValue,
   };
 }
 
@@ -70,7 +77,9 @@ test("composes SQLite and the paid route", async () => {
 
   try {
     const response = await runtime.handler(
-      new Request("http://internal/tools/sha256?text=stk402"),
+      new Request("http://internal/tools/sha256?text=stk402", {
+        headers: { "stk402-client-key": clientEnvelope.publicKeyValue },
+      }),
     );
     assert.equal(response.status, 402);
     const challenge = decodePaymentRequiredHeader(
@@ -81,6 +90,7 @@ test("composes SQLite and the paid route", async () => {
       "https://seller.example/tools/sha256?text=stk402",
     );
     assert.equal(challenge.accepts[0]?.maxTimeoutSeconds, 900);
+    assert.equal(challenge.accepts[0]?.scheme, "exact-private-envelope-v1");
     assert.equal(readFileSync(ledgerPath).subarray(0, 15).toString(), "SQLite format 3");
   } finally {
     runtime.close();

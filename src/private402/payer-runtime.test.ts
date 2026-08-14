@@ -10,8 +10,11 @@ import type { Account } from "starknet";
 
 import { loadPayerConfig } from "./payer-config.js";
 import { createPayerTransfers } from "./payer-runtime.js";
+import { generateServerEnvelopeKey } from "./private-envelope.js";
 
 test("composes OHTTP discovery and proving for Sepolia", () => {
+  const envelope = generateServerEnvelopeKey();
+  const clientEnvelope = generateServerEnvelopeKey();
   const config = loadPayerConfig({
     STK402_NETWORK: "sepolia",
     STARKNET_RPC_URL: "https://rpc.example",
@@ -28,6 +31,9 @@ test("composes OHTTP discovery and proving for Sepolia", () => {
     STK402_MAX_NETWORK_FEE: "20",
     STK402_DAILY_SPEND_LIMIT: "500",
     STK402_PAYER_STATE_PATH: "./data/payer.sqlite",
+    STK402_ENVELOPE_PUBLIC_KEY: envelope.publicKeyValue,
+    STK402_CLIENT_ENVELOPE_PRIVATE_KEY: clientEnvelope.privateKeyValue,
+    STK402_CLIENT_ENVELOPE_PUBLIC_KEY: clientEnvelope.publicKeyValue,
   });
   const seen: Array<[string, unknown]> = [];
   const discovery = {} as IndexerDiscoveryProvider;

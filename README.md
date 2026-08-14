@@ -1,10 +1,10 @@
 # stk402
 
-Private STRK20 payments for x402 agents on Starknet.
+Amount-confidential STRK20 payments for x402 agents on Starknet.
 
-STK402 adds an `exact-private` x402 payment scheme. An agent pays with a private STRK20 transfer. The server verifies the signed receipt, checks the indexed payment, prevents replay, and returns the paid resource.
+STK402 adds an encrypted x402 payment scheme for STRK20. The agent and server exchange encrypted payment terms and receipt metadata. The server verifies the signed receipt, checks the indexed payment, prevents replay, and returns the paid resource.
 
-> Hackathon status: the complete local Devnet flow works. Real Sepolia proof generation and Mainnet settlement have not run yet.
+> Hackathon status: one real Sepolia payment completed. Mainnet settlement has not run.
 
 ## Current status
 
@@ -14,10 +14,18 @@ STK402 adds an `exact-private` x402 payment scheme. An agent pays with a private
 | Private STRK transfer | Verified on Devnet | Alice deposits 100 FRI and transfers 50 FRI to Bob. |
 | Private payer funding | Verified on Devnet | The payer deposits 25 FRI. SQLite retry causes no second account execution. |
 | Sepolia services | Preflight verified | RPC, pool, discovery, and prover version checks pass. |
-| Real Sepolia proof and payment | Not run | Payer secrets and funded STRK are still required. |
+| Real Sepolia proof and payment | Verified | See [`EVIDENCE.md`](EVIDENCE.md). |
 | Mainnet payment | Not run | Discovery trust and deployment checks remain open. |
 
-VERIFIED: The local evidence comes from `npm test` and `npm run test:devnet`. Devnet uses test proof facts. It does not generate a real STARK proof.
+VERIFIED: The local evidence comes from `npm test` and `npm run test:devnet`. Devnet uses test proof facts. It does not generate a real STARK proof. The separate Sepolia run used the hosted proving service.
+
+## Privacy scope
+
+VERIFIED (`src/private402/private-envelope.ts`): New encrypted sessions use X25519, HKDF-SHA256, and AES-256-GCM to encrypt the amount, recipient, payer, and signed receipt fields in x402 headers. The server accepts one pinned client encryption key. An arbitrary requester cannot decrypt the challenge terms. Stored legacy sessions keep their original plaintext protocol for safe retry.
+
+VERIFIED (`EVIDENCE.md`): STRK20 encrypts note amounts on-chain. The current direct Sepolia payment still exposed the payer account. Its first channel setup also exposed the recipient in `ServerAction::Append`.
+
+INFERRED: A paymaster plus a pre-opened channel can remove both addresses from later public payment transactions. The first channel setup remains public. The seller and hosted STRK20 operators remain inside the trust boundary. This route still needs a live Sepolia test.
 
 ## How it works
 
@@ -33,9 +41,9 @@ sequenceDiagram
     participant L as SQLite
 
     A->>S: GET /tools/sha256?text=stk402
-    S-->>A: 402 exact-private challenge
-    A->>P: Private STRK transfer
-    A->>S: Signed invoice receipt
+    S-->>A: 402 encrypted payment challenge
+    A->>P: STRK20 transfer
+    A->>S: Encrypted signed receipt
     S->>D: Find payment evidence
     S->>R: Check account signature and finality
     S->>L: Consume invoice and transaction
@@ -72,12 +80,22 @@ VERIFIED: The example uses Alpha Sepolia service URLs. INFERRED: Ask the STRK20 
 
 ### Run the paid server
 
+Generate one server key pair and one authorized payer key pair:
+
+```sh
+npm run keys:envelope
+```
+
+Copy the server values into `.env.server`. Copy the payer values into `.env.payer`. The command prints private keys, so run it only in a trusted terminal. Do not commit its output.
+
 ```sh
 cp .env.server.example .env.server
 npm run serve:paid
 ```
 
-Fill every `replace_me` value before startup. Keep `STK402_RECIPIENT_VIEWING_KEY` in the local environment or a deployment secret store. Git ignores `.env.server`.
+Fill every `replace_me` value before startup. Keep `STK402_RECIPIENT_VIEWING_KEY` and `STK402_ENVELOPE_PRIVATE_KEY` in the local environment or a deployment secret store. Git ignores `.env.server`.
+
+Stop both processes before key rotation. Finish or safely recover pending payments first. Update the server and payer key values together.
 
 VERIFIED (`src/private402/serve.ts`): The server checks the RPC chain ID before it creates storage or starts listening. It then composes the STRK20 history reader, account signature check, SQLite replay ledger, persistent invoice store, and paid SHA-256 route.
 
@@ -164,6 +182,6 @@ npm test
 npm run test:devnet
 ```
 
-VERIFIED on 2026-08-14: `npm test` passed 80 tests. `npm run test:devnet` passed 2 tests. The Devnet suite covered private funding, private transfer, indexer discovery, signed receipt verification, settlement, and retry behavior.
+VERIFIED on 2026-08-14: `npm test` passed 88 tests. `npm run test:devnet` passed 2 tests. The Devnet suite covered private funding, private transfer, indexer discovery, signed receipt verification, settlement, and retry behavior.
 
 Blind spot: these passing tests do not prove hosted prover behavior, a real STARK proof, Sepolia payment, or Mainnet settlement.

@@ -21,9 +21,20 @@ test("persists one payment challenge until settlement succeeds", () => {
     expiresAt: 1_000_000,
     resource: { url: resourceUrl },
   });
+  const privateRequirements = paymentRequired.accepts[0]!;
+  const publicPaymentRequired = structuredClone(paymentRequired);
+  publicPaymentRequired.accepts[0] = {
+    ...privateRequirements,
+    scheme: "exact-private-envelope-v1",
+    amount: "0",
+    payTo: "0x0",
+  };
   const first = new SqlitePaymentSessionStore(path);
   try {
-    assert.equal(first.claim(resourceUrl, paymentRequired).state, "pending");
+    assert.equal(
+      first.claim(resourceUrl, publicPaymentRequired, privateRequirements).state,
+      "pending",
+    );
     const competing = structuredClone(paymentRequired);
     competing.accepts[0]!.extra.invoiceId = "0x556";
     first.claim(resourceUrl, competing);
@@ -34,6 +45,12 @@ test("persists one payment challenge until settlement succeeds", () => {
         ? winner.paymentRequired.accepts[0]?.extra.invoiceId
         : undefined,
       "0x555",
+    );
+    assert.equal(
+      winner?.state === "pending"
+        ? winner.privateRequirements?.amount
+        : undefined,
+      "50",
     );
     first.close();
 
@@ -46,6 +63,12 @@ test("persists one payment challenge until settlement succeeds", () => {
           ? pending.paymentRequired.accepts[0]?.extra.invoiceId
           : undefined,
         "0x555",
+      );
+      assert.equal(
+        pending?.state === "pending"
+          ? pending.privateRequirements?.payTo
+          : undefined,
+        privateRequirements.payTo,
       );
       reopened.complete(resourceUrl, {
         status: 200,
