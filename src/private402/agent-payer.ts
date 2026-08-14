@@ -22,6 +22,7 @@ import {
 } from "./signed-receipt.js";
 import type { RequiredFinality } from "./rpc-finality.js";
 import type { PayerJournal } from "./payer-journal.js";
+import type { SpendBudget } from "./spend-budget.js";
 
 type PayerAccount = Pick<
   Account,
@@ -55,8 +56,12 @@ export class Strk20ReceiptCreator implements PrivateReceiptCreator {
     private readonly maxNetworkFee: bigint,
     private readonly requiredFinality: RequiredFinality,
     private readonly journal: PayerJournal,
+    private readonly spendBudget: SpendBudget,
   ) {
     this.authorizedPool = validateAndParseAddress(poolAddress);
+    if (validateAndParseAddress(expectedToken) !== STRK_TOKEN_ADDRESS) {
+      throw new Error("payer currently supports STRK payments only");
+    }
     for (const [name, value] of [
       ["maxAmount", maxAmount],
       ["maxPoolFee", maxPoolFee],
@@ -190,6 +195,16 @@ export class Strk20ReceiptCreator implements PrivateReceiptCreator {
         throw new Error("network fee exceeds local limit");
       }
       resourceBounds = estimate.resourceBounds;
+      const reservation = this.spendBudget.reserve(
+        invoiceId,
+        amount + feeAmount + estimate.overall_fee,
+      );
+      if (reservation === "limit_exceeded") {
+        throw new Error("daily payment limit exceeded");
+      }
+      if (reservation === "already_reserved") {
+        throw new Error("payment budget requires reconciliation");
+      }
     } catch (error) {
       this.journal.release(invoiceId);
       throw error;

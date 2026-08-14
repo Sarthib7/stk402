@@ -7,11 +7,12 @@ import type { Account, RpcProvider } from "starknet";
 
 import { Strk20ReceiptCreator } from "./agent-payer.js";
 import type { PayerAttempt, PayerJournal } from "./payer-journal.js";
+import type { SpendBudget, SpendReservation } from "./spend-budget.js";
 
 const requirements: PaymentRequirements = {
   scheme: "exact-private",
   network: "starknet:SN_SEPOLIA",
-  asset: "0x333",
+  asset: "0x04718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d",
   amount: "50",
   payTo: "0x222",
   maxTimeoutSeconds: 60,
@@ -29,6 +30,7 @@ function fixture(
     proofData?: string;
     proofFacts?: string[];
     providerChainId?: string;
+    spendReservation?: SpendReservation;
   } = {},
 ) {
   const calls: Array<[string, unknown]> = [];
@@ -57,6 +59,12 @@ function fixture(
     },
     reconcileReverted: (invoiceId) => {
       attempts.delete(invoiceId);
+    },
+  };
+  const spendBudget: SpendBudget = {
+    reserve: (invoiceId, amount) => {
+      calls.push(["reserveSpend", { invoiceId, amount }]);
+      return options.spendReservation ?? "reserved";
     },
   };
   const tokenBuilder = {
@@ -156,13 +164,14 @@ function fixture(
       provider,
       "0x999",
       "starknet:SN_SEPOLIA",
-      "0x333",
+      "0x04718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d",
       "0x222",
       100n,
       10n,
       10n,
       finality,
       journal,
+      spendBudget,
     ),
   };
 }
@@ -210,6 +219,10 @@ test("proves, submits, waits, and signs one private payment", async () => {
   assert.equal(execution.proof, "proof");
   assert.deepEqual(execution.proofFacts, ["0x1"]);
   assert.ok(execution.resourceBounds);
+  assert.deepEqual(
+    calls.find(([name]) => name === "reserveSpend")?.[1],
+    { invoiceId: "0x555", amount: 60n },
+  );
   const signedMessages = calls
     .filter(([name]) => name === "signMessage")
     .map(([, message]) => message) as Array<{ message: { transaction_hash: string } }>;
@@ -282,11 +295,34 @@ test("rejects unauthorized token and recipient before journal creation", async (
   assert.equal(recipient.attempts.size, 0);
 });
 
+test("rejects a non-STRK spend policy during construction", () => {
+  assert.throws(
+    () =>
+      new Strk20ReceiptCreator(
+        {} as PrivateTransfersInterface,
+        {} as never,
+        {} as never,
+        "0x999",
+        "starknet:SN_SEPOLIA",
+        "0x333",
+        "0x222",
+        100n,
+        10n,
+        10n,
+        "l2",
+        {} as PayerJournal,
+        {} as SpendBudget,
+      ),
+    /STRK payments only/,
+  );
+});
+
 test("releases safe failures before submission", async () => {
   for (const [fixtureValue, message] of [
     [fixture("l2", 11n), /pool fee exceeds/],
     [fixture("l2", 7n, { networkFee: 11n }), /network fee exceeds/],
     [fixture("l2", 7n, { proofFacts: [] }), /incomplete proof/],
+    [fixture("l2", 7n, { spendReservation: "limit_exceeded" }), /daily payment limit/],
     [fixture("l2", 7n, { generatedPool: "0x998" }), /unauthorized pool call/],
     [fixture("l2", 7n, { generatedEntrypoint: "transfer" }), /unauthorized pool call/],
     [
@@ -332,4 +368,19 @@ test("blocks automatic retry after an unknown submission outcome", async () => {
     value.calls.filter(([name]) => name === "execute").length,
     1,
   );
+});
+
+test("blocks a retry when spend was reserved before a crash", async () => {
+  const value = fixture("l2", 7n, {
+    spendReservation: "already_reserved",
+  });
+  await assert.rejects(
+    value.creator.createReceipt(requirements),
+    /budget requires reconciliation/,
+  );
+  assert.equal(
+    value.calls.some(([name]) => name === "execute"),
+    false,
+  );
+  assert.equal(value.attempts.size, 0);
 });
