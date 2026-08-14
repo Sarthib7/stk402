@@ -2,6 +2,8 @@
 
 Evidence date: 2026-08-14
 
+**CORRECTION, VERIFIED:** An earlier version linked transactions through `sepolia.starkscan.co`. A live DNS check failed for that hostname. The links now use the [Voyager Sepolia pattern documented by Starknet Foundry](https://foundry-rs.github.io/starknet-foundry/starknet/block_explorer.html).
+
 This record uses these labels:
 
 - **VERIFIED** means the command ran and its output was inspected during this build session.
@@ -16,8 +18,8 @@ This record uses these labels:
 
 | Role | Transaction | Configured private deposit | Pool fee | Actual network fee | Result |
 | --- | --- | ---: | ---: | ---: | --- |
-| Recipient | [`0x53b90c...99f6`](https://sepolia.starkscan.co/tx/0x53b90ca2657a54ed087d515b351eead05972dc402ea744ca33314b6043699f6) | 10 FRI | 2 STRK | 3.419623102884746880 STRK | `SUCCEEDED`, `ACCEPTED_ON_L2` |
-| Payer | [`0x68e9fb...112a`](https://sepolia.starkscan.co/tx/0x68e9fb7ca6cd6ace1c50f78e5a29d8be77de151e22d362718de27a6f279112a) | 10 FRI | 2 STRK | 3.419623850781461280 STRK | `SUCCEEDED`, `ACCEPTED_ON_L2` |
+| Recipient | [`0x53b90c...99f6`](https://sepolia.voyager.online/tx/0x53b90ca2657a54ed087d515b351eead05972dc402ea744ca33314b6043699f6) | 10 FRI | 2 STRK | 3.419623102884746880 STRK | `SUCCEEDED`, `ACCEPTED_ON_L2` |
+| Payer | [`0x68e9fb...112a`](https://sepolia.voyager.online/tx/0x68e9fb7ca6cd6ace1c50f78e5a29d8be77de151e22d362718de27a6f279112a) | 10 FRI | 2 STRK | 3.419623850781461280 STRK | `SUCCEEDED`, `ACCEPTED_ON_L2` |
 
 **VERIFIED:** Repeating each funding command returned its stored transaction hash. It did not create another funding transaction.
 
@@ -32,7 +34,7 @@ payer retry:     0x68e9fb7ca6cd6ace1c50f78e5a29d8be77de151e22d362718de27a6f27911
 
 | Transaction | Private amount | Pool fee | Actual network fee | Result |
 | --- | ---: | ---: | ---: | --- |
-| [`0x22864d...2edc`](https://sepolia.starkscan.co/tx/0x22864d55577d54fb540b3663ba689061a5ba95424cd49ae67a372f7c9422edc) | 1 FRI | 2 STRK | 3.314914121664020544 STRK | `SUCCEEDED`, `ACCEPTED_ON_L2` |
+| [`0x22864d...2edc`](https://sepolia.voyager.online/tx/0x22864d55577d54fb540b3663ba689061a5ba95424cd49ae67a372f7c9422edc) | 1 FRI | 2 STRK | 3.314914121664020544 STRK | `SUCCEEDED`, `ACCEPTED_ON_L2` |
 
 ```json
 {
@@ -60,9 +62,9 @@ payer retry:     0x68e9fb7ca6cd6ace1c50f78e5a29d8be77de151e22d362718de27a6f27911
 
 | Purpose | Transaction |
 | --- | --- |
-| Deploy recipient account | [`0x6251d7...ac2f`](https://sepolia.starkscan.co/tx/0x6251d7c299723c3922ee64ca15c169217fa4608e9be4492686910a8d050ac2f) |
-| Deploy payer account | [`0x77d768...2293`](https://sepolia.starkscan.co/tx/0x77d7684749cbc6930c964dea51b5816620e18aac03ddeb88d0e0d1781352293) |
-| Transfer 20 test STRK to payer | [`0x6c830e...5227`](https://sepolia.starkscan.co/tx/0x6c830e1fdd4175989e15e4b3b97452631f7bb14533bfd1faadf6cdf40f95227) |
+| Deploy recipient account | [`0x6251d7...ac2f`](https://sepolia.voyager.online/tx/0x6251d7c299723c3922ee64ca15c169217fa4608e9be4492686910a8d050ac2f) |
+| Deploy payer account | [`0x77d768...2293`](https://sepolia.voyager.online/tx/0x77d7684749cbc6930c964dea51b5816620e18aac03ddeb88d0e0d1781352293) |
+| Transfer 20 test STRK to payer | [`0x6c830e...5227`](https://sepolia.voyager.online/tx/0x6c830e1fdd4175989e15e4b3b97452631f7bb14533bfd1faadf6cdf40f95227) |
 
 ## How the private flow works
 
