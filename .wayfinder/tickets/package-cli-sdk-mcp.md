@@ -13,6 +13,6 @@ Order locked:
 1. CLI entrypoints (already existed: fund / pay / serve / recover).
 2. SDK barrel `src/index.ts` via `package.json` `exports["."]`.
 3. Thin MCP `src/mcp/server.ts` tools: `stk402_check_network`, `stk402_fund_payer`, `stk402_pay_resource`. Run: `npm run mcp:serve`.
-4. Skill.md still fog (Not yet specified) until public demo URL exists.
+4. Skill.md: served at Consumer demo `/SKILL.md` (`web/public/SKILL.md`); CLI/MCP pay against the Paid Resource.
 
 Assets: `src/index.ts`, `src/index.test.ts`, `src/mcp/server.ts`, `src/check-mainnet.ts`, `.env.mainnet.example`.

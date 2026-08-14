@@ -13,6 +13,12 @@ const DEFAULT_RESOURCE =
   import.meta.env.VITE_STK402_RESOURCE_URL?.trim() ||
   "http://127.0.0.1:8787/tools/sha256?text=stk402";
 
+const SKILL_URL =
+  import.meta.env.VITE_STK402_SKILL_URL?.trim() ||
+  (typeof window !== "undefined"
+    ? `${window.location.origin}/SKILL.md`
+    : "/SKILL.md");
+
 function loadEnvelopeKeys() {
   const serverPublicKey =
     import.meta.env.VITE_STK402_ENVELOPE_PUBLIC_KEY?.trim() || "";
@@ -111,9 +117,26 @@ export default function App() {
         <h1>Consumer pay</h1>
         <p className="lede">
           Connect Ready or Xverse. Pay a real x402 Paid Resource from STRK20
-          notes. No viewing key leaves the wallet.
+          notes. No viewing key leaves the wallet. Agents: open the skill URL
+          below and pay via CLI or MCP.
         </p>
       </header>
+
+      <section className="panel">
+        <h2>Agent skill</h2>
+        <p className="muted">
+          Same demo origin. Load this skill, point{" "}
+          <code>STK402_RESOURCE_URL</code> at the Paid Resource below, then{" "}
+          <code>npm run pay:resource</code> or MCP{" "}
+          <code>stk402_pay_resource</code>.
+        </p>
+        <p className="meta">
+          <span className="label">Skill</span>{" "}
+          <a href={SKILL_URL} target="_blank" rel="noreferrer">
+            {SKILL_URL}
+          </a>
+        </p>
+      </section>
 
       <section className="panel">
         <h2>1. Wallet</h2>

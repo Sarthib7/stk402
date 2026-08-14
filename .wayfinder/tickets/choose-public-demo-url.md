@@ -1,13 +1,17 @@
 # Choose public demo URL shape
 
 Labels: wayfinder:grilling
-Status: open
-Blocked by: [Package CLI SDK and MCP surfaces](package-cli-sdk-mcp.md) (partial: need at least CLI pay working publicly)
+Status: closed
 
 ## Question
 
 What exact URL and flow do judges open: skill+CLI/MCP against hosted Paid Resource, browser pay page, or both?
 
-## Recommendation
+## Resolution (2026-08-14)
 
-Primary: hosted Paid Resource + documented skill/CLI pay (matches grill 7). Secondary: browser pay page when Wallet API path works. Always-on host before video ([Hosting and out-of-scope defaults](decide-hosting-and-scope.md)).
+**B + skill URL on the same origin.**
+
+- `demo_url` = always-on **Consumer pay page** (Ready/Xverse Wallet API), prefilled with the Paid Resource URL.
+- Same host serves **`/SKILL.md`** so an agent can load the skill and pay via CLI or MCP against that Paid Resource.
+- Paid Resource stays a separate always-on HTTPS URL (may be same project, different path or service).
+- Tunnel OK for first public proof. Always-on host before the demo video ([Hosting and out-of-scope defaults](decide-hosting-and-scope.md)).

@@ -31,8 +31,7 @@ By 2026-08-31: a public dual-client stk402 product (Agent Payer via CLI/SDK/MCP/
 
 ## Not yet specified
 
-- Exact MCP tool names and auth model for agent hosts.
-- Skill.md content shape (Cursor/Claude) once CLI/MCP stabilize.
+- Exact MCP auth model for remote agent hosts (stdio MCP is local operator env today).
 - Whether browser path uses Wallet API only or also Privacy SDK browser bundle.
 - Envelope-on live Sepolia measurement (code exists; live run was plaintext challenge).
 - AVNU mainnet allowlist for plain private transfer (not swap).
@@ -48,7 +47,8 @@ By 2026-08-31: a public dual-client stk402 product (Agent Payer via CLI/SDK/MCP/
 
 ## Frontier (local index; open tickets live under `tickets/`)
 
-- [Choose public demo URL shape](tickets/choose-public-demo-url.md)
+- Host always-on Consumer page + Paid Resource (tunnel first OK; Railway/Fly before video)
+- Optional: root-level skill install notes once `demo_url` is live
 
 Blocked:
 
@@ -61,9 +61,10 @@ Blocked:
 - [Package CLI SDK and MCP surfaces](tickets/package-cli-sdk-mcp.md) — SDK barrel + MCP tools shipped; skill.md deferred.
 - [Design browser Wallet API invoice pay](tickets/design-browser-wallet-invoice-pay.md) — `web/` WalletAccountV6 path locked; shared Receipt typed data.
 - [Browser envelope open for encrypted 402 terms](tickets/browser-envelope-open.md) — portable `@noble` open/seal; Vite env pins authorized client key.
+- [Choose public demo URL shape](tickets/choose-public-demo-url.md) — `demo_url` = Consumer pay page; same origin `/SKILL.md` for agent CLI/MCP pay against the Paid Resource.
 
 ## Least confident decisions
 
 1. Destination C + score hashes must be invoice settles (3B) while Day 0 mainnet prover/indexer URLs are still missing — calendar and infra risk.
-2. MCP + skill + browser Wallet API all as equal surfaces by Aug 31.
-3. Whether Wallet API browser settle can produce a stk402-verifiable Receipt without Node `signMessage`.
+2. Whether Wallet API browser settle can produce a stk402-verifiable Receipt without Node `signMessage`.
+3. Hosting pick (Railway vs Fly vs other) for always-on page + Paid Resource before video.

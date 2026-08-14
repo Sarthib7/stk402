@@ -110,6 +110,10 @@ button:disabled {
   word-break: break-all;
 }
 
+.meta a {
+  color: var(--accent);
+}
+
 .label {
   display: inline-block;
   min-width: 4.5rem;
