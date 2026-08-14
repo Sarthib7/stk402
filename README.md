@@ -65,6 +65,22 @@ npm run pay:resource
 
 Choose every FRI limit before the first payment. Keep `STK402_PAYER_PRIVATE_KEY` and `STK402_PAYER_VIEWING_KEY` in the local environment or a deployment secret store. The repository ignores `.env.payer`.
 
+Fund the payer with a private STRK note before its first payment:
+
+```sh
+npm run fund:payer
+```
+
+Set `STK402_PRIVATE_FUND_AMOUNT` to the exact FRI deposit. Set `STK402_PRIVATE_FUNDING_ID` to a unique label for that intended deposit. Keep the same ID when retrying an uncertain command. Change it only when you intend another deposit.
+
+`STK402_FUND_MIN_PROOF_VALIDITY_BLOCKS` sets the minimum proof lifetime remaining before submission. The default is 10 blocks.
+
+VERIFIED (`src/private402/fund-payer.ts` and `src/private402/fund-payer.test.ts`): The command checks the RPC and account chains. It checks that the public STRK balance existed at the proving block. It caps the pool and network fees. It checks the generated pool call, submits the approval and deposit atomically, waits for L2 finality, and stores the submitted transaction hash before waiting.
+
+VERIFIED (`src/private402/fund-payer.test.ts`): Unit tests use mocked RPC, prover, account, and pool results.
+
+VERIFIED (`test/devnet/fund-payer.test.ts`): The integration test submits one deposit from the payer account. It finds the 25 FRI private note, reopens SQLite, and retries without a second submission. Devnet uses test proof facts and does not generate a real STARK proof. A real Sepolia funding transaction has not run yet.
+
 VERIFIED (`src/private402/payer-runtime.ts`): The payer uses OHTTP for the proving and discovery services. It requires L2 finality and stores its journal, daily STRK budget, and active payment session in SQLite.
 
 VERIFIED (`src/private402/pay-resource.ts`): The payer rejects redirects and a challenge for another resource. It stores the challenge before payment. A retry resumes that invoice instead of requesting a new invoice.

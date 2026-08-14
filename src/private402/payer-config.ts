@@ -7,26 +7,35 @@ import {
 } from "../config.js";
 import { STRK_TOKEN_ADDRESS } from "./agent-payer.js";
 
-export interface PayerConfig {
+export interface PayerRuntimeConfig {
   network: Exclude<NetworkName, "devnet">;
   x402Network: "starknet:SN_MAIN" | "starknet:SN_SEPOLIA";
   rpcUrl: string;
   poolAddress: string;
   indexerUrl: string;
   provingServiceUrl: string;
-  resourceUrl: string;
   accountAddress: string;
   privateKey: string;
   viewingKey: bigint;
-  expectedRecipient: string;
-  maxAmount: bigint;
   maxPoolFee: bigint;
   maxNetworkFee: bigint;
-  dailySpendLimit: bigint;
   statePath: string;
   proverRequestTimeoutMs: number;
+}
+
+export interface PayerConfig extends PayerRuntimeConfig {
+  resourceUrl: string;
+  expectedRecipient: string;
+  maxAmount: bigint;
+  dailySpendLimit: bigint;
   minimumInvoiceValidityMs: number;
   allowedClockSkewMs: number;
+}
+
+export interface FundingConfig extends PayerRuntimeConfig {
+  fundingId: string;
+  fundingAmount: bigint;
+  fundingMinimumProofValidityBlocks: number;
 }
 
 function required(environment: NodeJS.ProcessEnv, name: string): string {
@@ -106,9 +115,35 @@ function httpsResource(environment: NodeJS.ProcessEnv): string {
 export function loadPayerConfig(
   environment: NodeJS.ProcessEnv = process.env,
 ): PayerConfig {
+  const base = loadPayerRuntimeConfig(environment);
+  return {
+    ...base,
+    resourceUrl: httpsResource(environment),
+    expectedRecipient: validateAndParseAddress(
+      required(environment, "STK402_EXPECTED_RECIPIENT"),
+    ),
+    maxAmount: u128(environment, "STK402_MAX_PAYMENT_AMOUNT"),
+    dailySpendLimit: u128(environment, "STK402_DAILY_SPEND_LIMIT"),
+    minimumInvoiceValidityMs: safeInteger(
+      environment,
+      "STK402_MIN_INVOICE_VALIDITY_MS",
+      360_000,
+    ),
+    allowedClockSkewMs: safeInteger(
+      environment,
+      "STK402_ALLOWED_CLOCK_SKEW_MS",
+      30_000,
+      true,
+    ),
+  };
+}
+
+function loadPayerRuntimeConfig(
+  environment: NodeJS.ProcessEnv,
+): PayerRuntimeConfig {
   const network = loadNetworkConfig(environment);
   if (network.network === "devnet") {
-    throw new Error("pay:resource supports sepolia or mainnet");
+    throw new Error("payer commands support sepolia or mainnet");
   }
   const services = loadProductionServicesConfig(environment);
   const statePath = required(environment, "STK402_PAYER_STATE_PATH");
@@ -131,35 +166,38 @@ export function loadPayerConfig(
     poolAddress: network.poolAddress,
     indexerUrl: services.indexerUrl,
     provingServiceUrl: services.provingServiceUrl,
-    resourceUrl: httpsResource(environment),
     accountAddress: validateAndParseAddress(
       required(environment, "STK402_PAYER_ADDRESS"),
     ),
     privateKey,
     viewingKey,
-    expectedRecipient: validateAndParseAddress(
-      required(environment, "STK402_EXPECTED_RECIPIENT"),
-    ),
-    maxAmount: u128(environment, "STK402_MAX_PAYMENT_AMOUNT"),
     maxPoolFee: u128(environment, "STK402_MAX_POOL_FEE", true),
     maxNetworkFee: u128(environment, "STK402_MAX_NETWORK_FEE", true),
-    dailySpendLimit: u128(environment, "STK402_DAILY_SPEND_LIMIT"),
     statePath,
     proverRequestTimeoutMs: safeInteger(
       environment,
       "STK402_PROVER_TIMEOUT_MS",
       600_000,
     ),
-    minimumInvoiceValidityMs: safeInteger(
+  };
+}
+
+export function loadFundingConfig(
+  environment: NodeJS.ProcessEnv = process.env,
+): FundingConfig {
+  const config = loadPayerRuntimeConfig(environment);
+  const fundingId = required(environment, "STK402_PRIVATE_FUNDING_ID");
+  if (!/^[A-Za-z0-9._-]{1,64}$/.test(fundingId)) {
+    throw new Error("STK402_PRIVATE_FUNDING_ID must use 1 to 64 safe characters");
+  }
+  return {
+    ...config,
+    fundingId,
+    fundingAmount: u128(environment, "STK402_PRIVATE_FUND_AMOUNT"),
+    fundingMinimumProofValidityBlocks: safeInteger(
       environment,
-      "STK402_MIN_INVOICE_VALIDITY_MS",
-      360_000,
-    ),
-    allowedClockSkewMs: safeInteger(
-      environment,
-      "STK402_ALLOWED_CLOCK_SKEW_MS",
-      30_000,
-      true,
+      "STK402_FUND_MIN_PROOF_VALIDITY_BLOCKS",
+      10,
     ),
   };
 }

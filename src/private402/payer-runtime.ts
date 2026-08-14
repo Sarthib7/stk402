@@ -9,7 +9,12 @@ import { dirname } from "node:path";
 import { Account, RpcProvider, constants } from "starknet";
 
 import { Strk20ReceiptCreator, STRK_TOKEN_ADDRESS } from "./agent-payer.js";
-import type { PayerConfig } from "./payer-config.js";
+import { Strk20PayerFunding } from "./fund-payer.js";
+import type {
+  FundingConfig,
+  PayerConfig,
+  PayerRuntimeConfig,
+} from "./payer-config.js";
 import { SqlitePayerJournal } from "./payer-journal.js";
 import { payResource, type PaidResourceResult } from "./pay-resource.js";
 import { SqlitePaymentSessionStore } from "./payment-session.js";
@@ -28,7 +33,7 @@ const defaultSdkFactories: PayerSdkFactories = {
 };
 
 export function createPayerTransfers(
-  config: PayerConfig,
+  config: PayerRuntimeConfig,
   account: Account,
   factories: PayerSdkFactories = defaultSdkFactories,
 ): PrivateTransfersInterface {
@@ -102,5 +107,37 @@ export async function runPayer(config: PayerConfig): Promise<PaidResourceResult>
     journal.close();
     budget.close();
     sessions.close();
+  }
+}
+
+export async function runFunding(config: FundingConfig): Promise<string> {
+  mkdirSync(dirname(config.statePath), { recursive: true });
+  const provider = new RpcProvider({ nodeUrl: config.rpcUrl, batch: 50 });
+  const account = new Account({
+    provider,
+    address: config.accountAddress,
+    signer: config.privateKey,
+    cairoVersion: "1",
+  });
+  const transfers = createPayerTransfers(config, account);
+  const journal = new SqlitePayerJournal(config.statePath);
+  try {
+    return await new Strk20PayerFunding(
+      transfers,
+      account,
+      provider,
+      config.poolAddress,
+      config.x402Network === "starknet:SN_MAIN"
+        ? constants.StarknetChainId.SN_MAIN
+        : constants.StarknetChainId.SN_SEPOLIA,
+      config.fundingId,
+      config.fundingAmount,
+      config.maxPoolFee,
+      config.maxNetworkFee,
+      config.fundingMinimumProofValidityBlocks,
+      journal,
+    ).fund();
+  } finally {
+    journal.close();
   }
 }

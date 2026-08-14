@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { loadPayerConfig, STRK_TOKEN_ADDRESS } from "./payer-config.js";
+import {
+  loadFundingConfig,
+  loadPayerConfig,
+  STRK_TOKEN_ADDRESS,
+} from "./payer-config.js";
 
 function environment(): NodeJS.ProcessEnv {
   return {
@@ -71,5 +75,46 @@ test("rejects unsafe payer policy and secret placeholders", () => {
         STK402_DAILY_SPEND_LIMIT: "0",
       }),
     /u128 range/,
+  );
+});
+
+test("loads and validates one private funding instruction", () => {
+  const fundingEnvironment = environment();
+  delete fundingEnvironment.STK402_RESOURCE_URL;
+  delete fundingEnvironment.STK402_EXPECTED_RECIPIENT;
+  delete fundingEnvironment.STK402_MAX_PAYMENT_AMOUNT;
+  delete fundingEnvironment.STK402_DAILY_SPEND_LIMIT;
+  fundingEnvironment.STK402_PRIVATE_FUNDING_ID = "initial-sepolia-funding";
+  fundingEnvironment.STK402_PRIVATE_FUND_AMOUNT = "50";
+  const config = loadFundingConfig(fundingEnvironment);
+  assert.equal(config.fundingId, "initial-sepolia-funding");
+  assert.equal(config.fundingAmount, 50n);
+  assert.equal(config.fundingMinimumProofValidityBlocks, 10);
+
+  assert.throws(
+    () =>
+      loadFundingConfig({
+        ...environment(),
+        STK402_PRIVATE_FUNDING_ID: "bad funding id",
+        STK402_PRIVATE_FUND_AMOUNT: "50",
+      }),
+    /safe characters/,
+  );
+  assert.throws(
+    () =>
+      loadFundingConfig({
+        ...environment(),
+        STK402_PRIVATE_FUNDING_ID: "initial-sepolia-funding",
+        STK402_PRIVATE_FUND_AMOUNT: "0",
+      }),
+    /u128 range/,
+  );
+  assert.throws(
+    () =>
+      loadFundingConfig({
+        ...fundingEnvironment,
+        STK402_FUND_MIN_PROOF_VALIDITY_BLOCKS: "0",
+      }),
+    /safe integer/,
   );
 });
