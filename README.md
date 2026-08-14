@@ -163,6 +163,14 @@ npm run mcp:serve
 
 Tools: `stk402_check_network`, `stk402_fund_payer`, `stk402_pay_resource`.
 
+### Consumer web (Wallet API)
+
+```sh
+npm run web:dev
+```
+
+Connect Ready or Xverse, paste a Paid Resource URL, pay from shielded notes. Encrypted envelope challenges still need the browser envelope feat; Agent CLI/MCP pays those today. See `web/README.md`.
+
 Mainnet agent settle still needs hosted proving and discovery URLs. Check status without guessing endpoints:
 
 ```sh

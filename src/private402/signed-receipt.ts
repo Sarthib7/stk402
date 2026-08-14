@@ -17,6 +17,12 @@ import {
   PRIVATE_ENVELOPE_SCHEME,
   sealReceipt,
 } from "./private-envelope.js";
+import {
+  buildReceiptTypedData,
+  invoiceExpiresAt,
+} from "../shared/receipt-typed-data.js";
+
+export { buildReceiptTypedData, invoiceExpiresAt } from "../shared/receipt-typed-data.js";
 
 export const PRIVATE_EXACT_SCHEME = "exact-private";
 
@@ -197,32 +203,6 @@ export class InMemoryClaimLedger implements ClaimLedger {
   }
 }
 
-function chainId(network: Network): string {
-  if (network === "starknet:SN_MAIN") return "SN_MAIN";
-  if (network === "starknet:SN_SEPOLIA") return "SN_SEPOLIA";
-  throw new Error("unsupported_network");
-}
-
-function invoiceId(requirements: PaymentRequirements): string {
-  const value = requirements.extra.invoiceId;
-  if (typeof value !== "string" || !isFelt(value)) {
-    throw new Error("invalid_invoice");
-  }
-  return num.toHex(value);
-}
-
-export function invoiceExpiresAt(requirements: PaymentRequirements): number {
-  const value = requirements.extra.expiresAt;
-  if (typeof value !== "string" || !/^\d+$/.test(value)) {
-    throw new Error("invalid_invoice_expiry");
-  }
-  const expiresAt = Number(value);
-  if (!Number.isSafeInteger(expiresAt) || expiresAt < 1) {
-    throw new Error("invalid_invoice_expiry");
-  }
-  return expiresAt;
-}
-
 function isFelt(value: unknown): value is string {
   if (typeof value !== "string" || !/^0x[0-9a-f]+$/i.test(value)) return false;
   try {
@@ -236,43 +216,18 @@ function address(value: string): string {
   return validateAndParseAddress(value);
 }
 
-export function buildReceiptTypedData(
-  requirements: PaymentRequirements,
-  transactionHash: string,
-): TypedData {
-  return {
-    domain: {
-      name: "STK402",
-      version: "2",
-      chainId: chainId(requirements.network),
-      revision: "1",
-    },
-    primaryType: "PrivatePaymentReceipt",
-    types: {
-      StarknetDomain: [
-        { name: "name", type: "shortstring" },
-        { name: "version", type: "shortstring" },
-        { name: "chainId", type: "shortstring" },
-        { name: "revision", type: "shortstring" },
-      ],
-      PrivatePaymentReceipt: [
-        { name: "invoice_id", type: "felt" },
-        { name: "transaction_hash", type: "felt" },
-        { name: "recipient", type: "ContractAddress" },
-        { name: "token", type: "ContractAddress" },
-        { name: "amount", type: "u128" },
-        { name: "expires_at", type: "felt" },
-      ],
-    },
-    message: {
-      invoice_id: invoiceId(requirements),
-      transaction_hash: num.toHex(transactionHash),
-      recipient: address(requirements.payTo),
-      token: address(requirements.asset),
-      amount: requirements.amount,
-      expires_at: invoiceExpiresAt(requirements).toString(),
-    },
-  };
+function chainId(network: Network): string {
+  if (network === "starknet:SN_MAIN") return "SN_MAIN";
+  if (network === "starknet:SN_SEPOLIA") return "SN_SEPOLIA";
+  throw new Error("unsupported_network");
+}
+
+function invoiceId(requirements: PaymentRequirements): string {
+  const value = requirements.extra.invoiceId;
+  if (typeof value !== "string" || !isFelt(value)) {
+    throw new Error("invalid_invoice");
+  }
+  return num.toHex(value);
 }
 
 function parseReceipt(payload: PaymentPayload): SignedReceipt | null {

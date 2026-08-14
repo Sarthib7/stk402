@@ -23,6 +23,8 @@
     "fund:payer": "node --env-file=.env.payer --import tsx src/private402/fund.ts",
     "keys:envelope": "node --import tsx src/private402/generate-envelope-keys.ts",
     "mcp:serve": "node --env-file-if-exists=.env.payer --import tsx src/mcp/server.ts",
+    "web:dev": "npm --prefix web run dev",
+    "web:build": "npm --prefix web run build",
     "postinstall": "npm run build:vendor",
     "serve:paid": "node --env-file=.env.server --import tsx src/private402/serve.ts",
     "test": "node --import tsx --test \"src/**/*.test.ts\"",
