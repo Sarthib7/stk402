@@ -169,7 +169,7 @@ Tools: `stk402_check_network`, `stk402_fund_payer`, `stk402_pay_resource`.
 npm run web:dev
 ```
 
-Connect Ready or Xverse, paste a Paid Resource URL, pay from shielded notes. Encrypted envelope challenges still need the browser envelope feat; Agent CLI/MCP pays those today. See `web/README.md`.
+Connect Ready or Xverse, paste a Paid Resource URL, pay from shielded notes. Envelope challenges need the three `VITE_STK402_*` envelope keys (same authorized client key as the server). See `web/README.md`.
 
 Mainnet agent settle still needs hosted proving and discovery URLs. Check status without guessing endpoints:
 

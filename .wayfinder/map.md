@@ -48,7 +48,6 @@ By 2026-08-31: a public dual-client stk402 product (Agent Payer via CLI/SDK/MCP/
 
 ## Frontier (local index; open tickets live under `tickets/`)
 
-- [Browser envelope open for encrypted 402 terms](tickets/browser-envelope-open.md)
 - [Choose public demo URL shape](tickets/choose-public-demo-url.md)
 
 Blocked:
@@ -60,7 +59,8 @@ Blocked:
 
 - [Unlock mainnet discovery and proving URLs](tickets/unlock-mainnet-service-urls.md) — still unpublished; `.env.mainnet.example` placeholders only; `npm run check:mainnet` reports blocked.
 - [Package CLI SDK and MCP surfaces](tickets/package-cli-sdk-mcp.md) — SDK barrel + MCP tools shipped; skill.md deferred.
-- [Design browser Wallet API invoice pay](tickets/design-browser-wallet-invoice-pay.md) — `web/` WalletAccountV6 path locked; shared Receipt typed data; envelope open is follow-up.
+- [Design browser Wallet API invoice pay](tickets/design-browser-wallet-invoice-pay.md) — `web/` WalletAccountV6 path locked; shared Receipt typed data.
+- [Browser envelope open for encrypted 402 terms](tickets/browser-envelope-open.md) — portable `@noble` open/seal; Vite env pins authorized client key.
 
 ## Least confident decisions
 

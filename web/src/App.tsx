@@ -13,6 +13,24 @@ const DEFAULT_RESOURCE =
   import.meta.env.VITE_STK402_RESOURCE_URL?.trim() ||
   "http://127.0.0.1:8787/tools/sha256?text=stk402";
 
+function loadEnvelopeKeys() {
+  const serverPublicKey =
+    import.meta.env.VITE_STK402_ENVELOPE_PUBLIC_KEY?.trim() || "";
+  const clientPrivateKey =
+    import.meta.env.VITE_STK402_CLIENT_ENVELOPE_PRIVATE_KEY?.trim() || "";
+  const clientPublicKey =
+    import.meta.env.VITE_STK402_CLIENT_ENVELOPE_PUBLIC_KEY?.trim() || "";
+  if (!serverPublicKey && !clientPrivateKey && !clientPublicKey) {
+    return undefined;
+  }
+  if (!serverPublicKey || !clientPrivateKey || !clientPublicKey) {
+    throw new Error(
+      "set all three VITE_STK402_* envelope keys, or leave all empty for plaintext exact-private",
+    );
+  }
+  return { serverPublicKey, clientPrivateKey, clientPublicKey };
+}
+
 export default function App() {
   const [wallets, setWallets] = useState<WalletWithStarknetFeatures[]>([]);
   const [account, setAccount] = useState<WalletAccountV6 | null>(null);
@@ -73,6 +91,7 @@ export default function App() {
         resourceUrl,
         account,
         payerAddress: address,
+        envelope: loadEnvelopeKeys(),
         onProgress: ({ step, detail }) => {
           setLog((rows) => [...rows, detail ? `${step}: ${detail}` : step]);
         },
@@ -144,8 +163,8 @@ export default function App() {
         </button>
         <p className="muted">
           Proof generation can take minutes. Merchant must be pool-registered.
-          Encrypted envelope challenges need the next browser feat; Agent
-          CLI/MCP works today.
+          Envelope servers need the three VITE_STK402_* envelope keys (same
+          authorized client key the server pins).
         </p>
       </section>
 
