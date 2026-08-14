@@ -13,6 +13,7 @@ STK402 adds an encrypted x402 payment scheme for STRK20. The agent and server ex
 | Paid HTTP resource | Verified locally | Loopback request returns `402`, then returns the SHA-256 result after settlement. |
 | Private STRK transfer | Verified on Devnet | Alice deposits 100 FRI and transfers 50 FRI to Bob. |
 | Private payer funding | Verified on Devnet | The payer deposits 25 FRI. SQLite retry causes no second account execution. |
+| Later paymaster transfer | Verified on Devnet | A pre-opened channel lets the paymaster submit without payer or recipient in payment calldata. |
 | Sepolia services | Preflight verified | RPC, pool, discovery, and prover version checks pass. |
 | Real Sepolia proof and payment | Verified | See [`EVIDENCE.md`](EVIDENCE.md). |
 | Mainnet payment | Not run | Discovery trust and deployment checks remain open. |
@@ -25,7 +26,9 @@ VERIFIED (`src/private402/private-envelope.ts`): New encrypted sessions use X255
 
 VERIFIED (`EVIDENCE.md`): STRK20 encrypts note amounts on-chain. The current direct Sepolia payment still exposed the payer account. Its first channel setup also exposed the recipient in `ServerAction::Append`.
 
-INFERRED: A paymaster plus a pre-opened channel can remove both addresses from later public payment transactions. The first channel setup remains public. The seller and hosted STRK20 operators remain inside the trust boundary. This route still needs a live Sepolia test.
+VERIFIED (`test/devnet/paymaster-private-payment.test.ts`): A pre-opened channel and paymaster remove both addresses from a later Devnet payment transaction. The test first proves that setup calldata contains the recipient. It then proves the later transaction uses the paymaster sender and omits payer and recipient felts.
+
+INFERRED: The same route still needs a live Sepolia test with the configured paymaster. The first channel setup remains public. The seller, paymaster, and hosted STRK20 operators remain inside the trust boundary. The paymaster receives the API key and proven call. It can link its customer to the public paymaster transaction.
 
 ## How it works
 
@@ -35,6 +38,7 @@ VERIFIED (`src/private402/`): The current vertical slice joins the x402 request,
 sequenceDiagram
     participant A as Agent
     participant S as Paid server
+    participant M as Paymaster
     participant P as STRK20 pool
     participant D as Discovery service
     participant R as Starknet RPC
@@ -42,7 +46,8 @@ sequenceDiagram
 
     A->>S: GET /tools/sha256?text=stk402
     S-->>A: 402 encrypted payment challenge
-    A->>P: STRK20 transfer
+    A->>M: Proven STRK20 action
+    M->>P: Submit later transfer
     A->>S: Encrypted signed receipt
     S->>D: Find payment evidence
     S->>R: Check account signature and finality
@@ -124,6 +129,10 @@ npm run pay:resource
 
 VERIFIED (`src/private402/pay-resource.ts`): The payer rejects redirects and challenges for another resource. It stores the challenge before payment. A retry resumes the same invoice.
 
+Set `STK402_PAYMASTER_URL`, `STK402_PAYMASTER_API_KEY`, and `STK402_MAX_PAYMASTER_FEE` before payment. The payer stops before proving when the recipient channel is not ready. It does not open a public recipient channel during a paid request.
+
+VERIFIED (`src/private402/agent-payer.ts`): The paymaster path caps the pool fee and quoted STRK paymaster fee. It requires an existing channel. It disables automatic registration and channel setup. The daily limit reserves the note amount plus the quoted paymaster fee.
+
 The payer keeps a completed result in SQLite. Clear it only after the caller stores the result:
 
 ```sh
@@ -142,7 +151,7 @@ VERIFIED (`src/private402/payment-recovery.ts`): Recovery refuses to clear a ses
 
 ### Payment checks
 
-VERIFIED (`src/private402/agent-payer.ts`): The payer restricts the network, STRK token, recipient, payment amount, pool fee, network fee, daily STRK spend, pool call, invoice lifetime, and proof data before submission.
+VERIFIED (`src/private402/agent-payer.ts`): The payer restricts the network, STRK token, recipient, payment amount, pool fee, daily STRK spend, pool call, invoice lifetime, and proof data before submission. Direct payments cap the Starknet network fee. Paymaster payments cap the quoted STRK fee.
 
 VERIFIED (`src/private402/claim-ledger.ts`): An exact retry of an accepted invoice and transaction is idempotent. Another invoice cannot reuse that transaction.
 
@@ -182,6 +191,6 @@ npm test
 npm run test:devnet
 ```
 
-VERIFIED on 2026-08-14: `npm test` passed 88 tests. `npm run test:devnet` passed 2 tests. The Devnet suite covered private funding, private transfer, indexer discovery, signed receipt verification, settlement, and retry behavior.
+VERIFIED on 2026-08-14: `npm test` passed 99 tests. `npm run test:devnet` passed 3 tests. The Devnet suite covered private funding, direct private transfer, paymaster submission, address-absence checks, indexer discovery, signed receipt verification, settlement, and retry behavior.
 
-Blind spot: these passing tests do not prove hosted prover behavior, a real STARK proof, Sepolia payment, or Mainnet settlement.
+Blind spot: the paymaster test uses a local substitute and test proof facts. These passing tests do not prove live paymaster support, a real STARK proof, the encrypted scheme on Sepolia, or Mainnet settlement.

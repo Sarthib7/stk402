@@ -9,6 +9,8 @@
   "scripts": {
     "build:contracts:devnet": "cd vendor/starknet-privacy && PATH=\"$INIT_CWD/.tools/bin:$PATH\" SCARB_CACHE=\"$INIT_CWD/.cache/scarb\" XDG_CACHE_HOME=\"$INIT_CWD/.cache\" scarb build -p privacy --features test_contracts",
     "build:sdk": "tsc -p vendor/starknet-privacy/sdk/tsconfig.build.json",
+    "build:client": "tsc -p vendor/starknet-privacy/client/tsconfig.build.json",
+    "build:vendor": "npm run build:sdk && npm run build:client",
     "check:network": "node --env-file-if-exists=.env --import tsx src/check-network.ts",
     "check:sepolia": "node --env-file-if-exists=.env.sepolia --import tsx src/check-sepolia.ts",
     "pay:resource": "node --env-file=.env.payer --import tsx src/private402/pay.ts",
@@ -16,12 +18,14 @@
     "pay:ack": "node --env-file=.env.payer --import tsx src/private402/ack-payment.ts",
     "fund:payer": "node --env-file=.env.payer --import tsx src/private402/fund.ts",
     "keys:envelope": "node --import tsx src/private402/generate-envelope-keys.ts",
+    "postinstall": "npm run build:vendor",
     "serve:paid": "node --env-file=.env.server --import tsx src/private402/serve.ts",
     "test": "node --import tsx --test \"src/**/*.test.ts\"",
-    "test:devnet": "npm run build:contracts:devnet && npm run build:sdk && node --import tsx --test --test-concurrency=1 \"test/devnet/*.test.ts\"",
+    "test:devnet": "npm run build:contracts:devnet && npm run build:vendor && node --import tsx --test --test-concurrency=1 \"test/devnet/*.test.ts\"",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@starkware-libs/starknet-privacy-client": "file:vendor/starknet-privacy/client",
     "@starkware-libs/starknet-privacy-sdk": "file:vendor/starknet-privacy/sdk",
     "@x402/core": "2.22.0",
     "starknet": "10.0.2"

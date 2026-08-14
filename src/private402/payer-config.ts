@@ -39,6 +39,9 @@ export interface PayerConfig extends PayerRuntimeConfig {
   allowedClockSkewMs: number;
   envelopePublicKey: KeyObject;
   clientEnvelopeKey: ClientEnvelopeKey;
+  paymasterUrl: string;
+  paymasterApiKey: string;
+  maxPaymasterFee: bigint;
 }
 
 export interface FundingConfig extends PayerRuntimeConfig {
@@ -121,6 +124,14 @@ function httpsResource(environment: NodeJS.ProcessEnv): string {
   return resource.toString();
 }
 
+function httpsService(environment: NodeJS.ProcessEnv, name: string): string {
+  const value = new URL(required(environment, name));
+  if (value.protocol !== "https:" || value.username || value.password) {
+    throw new Error(`${name} must be an HTTPS URL without credentials`);
+  }
+  return value.toString();
+}
+
 export function loadPayerConfig(
   environment: NodeJS.ProcessEnv = process.env,
 ): PayerConfig {
@@ -166,6 +177,9 @@ export function loadPayerConfig(
       publicKey: clientPublicKey,
       privateKey: clientPrivateKey,
     },
+    paymasterUrl: httpsService(environment, "STK402_PAYMASTER_URL"),
+    paymasterApiKey: required(environment, "STK402_PAYMASTER_API_KEY"),
+    maxPaymasterFee: u128(environment, "STK402_MAX_PAYMASTER_FEE"),
   };
 }
 

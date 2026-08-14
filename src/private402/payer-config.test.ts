@@ -32,6 +32,9 @@ function environment(): NodeJS.ProcessEnv {
     STK402_ENVELOPE_PUBLIC_KEY: envelope.publicKeyValue,
     STK402_CLIENT_ENVELOPE_PRIVATE_KEY: clientEnvelope.privateKeyValue,
     STK402_CLIENT_ENVELOPE_PUBLIC_KEY: clientEnvelope.publicKeyValue,
+    STK402_PAYMASTER_URL: "https://paymaster.example",
+    STK402_PAYMASTER_API_KEY: "test-api-key",
+    STK402_MAX_PAYMASTER_FEE: "30",
   };
 }
 
@@ -42,6 +45,8 @@ test("loads a production Sepolia payer policy", () => {
   assert.equal(config.maxAmount, 100n);
   assert.equal(config.maxPoolFee, 10n);
   assert.equal(config.maxNetworkFee, 20n);
+  assert.equal(config.maxPaymasterFee, 30n);
+  assert.equal(config.paymasterUrl, "https://paymaster.example/");
   assert.equal(config.dailySpendLimit, 500n);
   assert.equal(config.proverRequestTimeoutMs, 600_000);
   assert.equal(config.minimumInvoiceValidityMs, 360_000);

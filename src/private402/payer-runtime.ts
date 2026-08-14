@@ -7,6 +7,11 @@ import {
 import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { Account, RpcProvider, constants } from "starknet";
+import {
+  AvnuPaymaster,
+  type AvnuPaymasterOptions,
+  type Paymaster,
+} from "@starkware-libs/starknet-privacy-client";
 
 import { Strk20ReceiptCreator, STRK_TOKEN_ADDRESS } from "./agent-payer.js";
 import { Strk20PayerFunding } from "./fund-payer.js";
@@ -30,6 +35,18 @@ const defaultSdkFactories: PayerSdkFactories = {
   discovery: IndexerDiscoveryProvider,
   prover: ProvingServiceProofProvider,
   transfers: createPrivateTransfers,
+};
+
+interface PayerPaymentFactories {
+  paymaster(options: AvnuPaymasterOptions): Paymaster;
+  receiptCreator(
+    ...args: ConstructorParameters<typeof Strk20ReceiptCreator>
+  ): Strk20ReceiptCreator;
+}
+
+const defaultPaymentFactories: PayerPaymentFactories = {
+  paymaster: (options) => new AvnuPaymaster(options),
+  receiptCreator: (...args) => new Strk20ReceiptCreator(...args),
 };
 
 export function createPayerTransfers(
@@ -63,6 +80,46 @@ export function createPayerTransfers(
   });
 }
 
+export function createPayerReceiptCreator(
+  config: PayerConfig,
+  transfers: PrivateTransfersInterface,
+  account: Account,
+  provider: RpcProvider,
+  journal: SqlitePayerJournal,
+  budget: SqliteDailySpendBudget,
+  factories: PayerPaymentFactories = defaultPaymentFactories,
+): Strk20ReceiptCreator {
+  const paymaster = factories.paymaster({
+    url: config.paymasterUrl,
+    apiKey: config.paymasterApiKey,
+    feeMode: {
+      mode: "sponsored_private",
+      poolFeeToken: STRK_TOKEN_ADDRESS,
+      tip: "normal",
+    },
+  });
+  return factories.receiptCreator(
+    transfers,
+    account,
+    provider,
+    config.poolAddress,
+    config.x402Network,
+    STRK_TOKEN_ADDRESS,
+    config.expectedRecipient,
+    config.maxAmount,
+    config.maxPoolFee,
+    config.maxNetworkFee,
+    "l2",
+    journal,
+    budget,
+    config.minimumInvoiceValidityMs,
+    config.allowedClockSkewMs,
+    Date.now,
+    paymaster,
+    config.maxPaymasterFee,
+  );
+}
+
 export async function runPayer(config: PayerConfig): Promise<PaidResourceResult> {
   mkdirSync(dirname(config.statePath), { recursive: true });
   const provider = new RpcProvider({ nodeUrl: config.rpcUrl, batch: 50 });
@@ -80,22 +137,13 @@ export async function runPayer(config: PayerConfig): Promise<PaidResourceResult>
   );
   const sessions = new SqlitePaymentSessionStore(config.statePath);
   try {
-    const receiptCreator = new Strk20ReceiptCreator(
+    const receiptCreator = createPayerReceiptCreator(
+      config,
       transfers,
       account,
       provider,
-      config.poolAddress,
-      config.x402Network,
-      STRK_TOKEN_ADDRESS,
-      config.expectedRecipient,
-      config.maxAmount,
-      config.maxPoolFee,
-      config.maxNetworkFee,
-      "l2",
       journal,
       budget,
-      config.minimumInvoiceValidityMs,
-      config.allowedClockSkewMs,
     );
     return await payResource(
       config.resourceUrl,

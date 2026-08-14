@@ -2,6 +2,12 @@ import type {
   PrivateTransfersInterface,
   ProofInvocationResult,
 } from "@starkware-libs/starknet-privacy-sdk";
+import { SetupRequirement } from "@starkware-libs/starknet-privacy-sdk";
+import {
+  toPaymasterCall,
+  type Paymaster,
+  type PaymasterExecute,
+} from "@starkware-libs/starknet-privacy-client";
 import type { Network, PaymentRequirements } from "@x402/core/types";
 import { createHash } from "node:crypto";
 import type { Account, RpcProvider } from "starknet";
@@ -61,6 +67,8 @@ export class Strk20ReceiptCreator implements PrivateReceiptCreator {
     private readonly minimumInvoiceValidityMs: number,
     private readonly allowedClockSkewMs: number,
     private readonly now: () => number = Date.now,
+    private readonly paymaster?: Paymaster,
+    private readonly maxPaymasterFee?: bigint,
   ) {
     this.authorizedPool = validateAndParseAddress(poolAddress);
     if (validateAndParseAddress(expectedToken) !== STRK_TOKEN_ADDRESS) {
@@ -83,6 +91,15 @@ export class Strk20ReceiptCreator implements PrivateReceiptCreator {
       if (value < 0n || value >= 2n ** 128n) {
         throw new Error(`${name} must fit in u128`);
       }
+    }
+    if (Boolean(paymaster) !== (maxPaymasterFee !== undefined)) {
+      throw new Error("paymaster and max paymaster fee must be configured together");
+    }
+    if (
+      maxPaymasterFee !== undefined &&
+      (maxPaymasterFee <= 0n || maxPaymasterFee >= 2n ** 128n)
+    ) {
+      throw new Error("maxPaymasterFee must be a positive u128");
     }
   }
 
@@ -128,10 +145,13 @@ export class Strk20ReceiptCreator implements PrivateReceiptCreator {
       throw error;
     }
 
-    let calls: Parameters<PayerAccount["execute"]>[0];
-    let resourceBounds: Awaited<ReturnType<PayerAccount["estimateInvokeFee"]>>["resourceBounds"];
+    let calls: Parameters<PayerAccount["execute"]>[0] | undefined;
+    let resourceBounds:
+      | Awaited<ReturnType<PayerAccount["estimateInvokeFee"]>>["resourceBounds"]
+      | undefined;
     let proof: string;
     let proofFacts: string[];
+    let paymasterExecute: PaymasterExecute | undefined;
     try {
       const expectedChainId = networkChainId(this.expectedNetwork);
       const [providerChainId, accountChainId] = await Promise.all([
@@ -156,16 +176,66 @@ export class Strk20ReceiptCreator implements PrivateReceiptCreator {
       if (latestBlock < 10) throw new Error("chain is too young for proving");
       const provingBlockId = latestBlock - 10;
 
+      const feeResult = await this.provider.callContract({
+        contractAddress: this.authorizedPool,
+        entrypoint: "get_fee_amount",
+      });
+      if (feeResult[0] === undefined) throw new Error("pool fee query failed");
+      const feeAmount = BigInt(feeResult[0]);
+      if (feeAmount > this.maxPoolFee) throw new Error("pool fee exceeds local limit");
+
+      let paymasterFee = 0n;
+      let paymasterFeeRecipient: string | undefined;
+      if (this.paymaster) {
+        const setup = await this.transfers.discoverRequirement(recipient, token);
+        if (setup !== SetupRequirement.Ready) {
+          throw new Error("private payment channel is not ready");
+        }
+        const quote = await this.paymaster.buildTransaction({
+          kind: "applyAction",
+          poolAddress: this.authorizedPool,
+        });
+        if (quote.typedData !== undefined || quote.feeAction.type !== "withdraw") {
+          throw new Error("paymaster returned an invalid private quote");
+        }
+        if (validateAndParseAddress(quote.feeAction.token) !== STRK_TOKEN_ADDRESS) {
+          throw new Error("paymaster fee token is not authorized");
+        }
+        paymasterFeeRecipient = validateAndParseAddress(
+          quote.feeAction.recipient,
+        );
+        if (BigInt(paymasterFeeRecipient) === 0n) {
+          throw new Error("paymaster fee recipient is invalid");
+        }
+        try {
+          paymasterFee = BigInt(quote.feeAction.amount);
+        } catch {
+          throw new Error("paymaster fee amount is invalid");
+        }
+        if (paymasterFee <= 0n || paymasterFee >= 2n ** 128n) {
+          throw new Error("paymaster fee amount is invalid");
+        }
+        if (paymasterFee > this.maxPaymasterFee!) {
+          throw new Error("paymaster fee exceeds local limit");
+        }
+      }
+
       const builder = this.transfers
         .build({
-          autoRegister: true,
-          autoSetup: true,
+          autoRegister: !this.paymaster,
+          autoSetup: !this.paymaster,
           autoDiscover: { notes: "refresh", channels: "refresh" },
           autoSelectNotes: "naive",
         })
         .surplusTo(this.account.address)
         .with(token, (tokenBuilder) => {
           tokenBuilder.transfer({ recipient, amount });
+          if (paymasterFeeRecipient) {
+            tokenBuilder.withdraw({
+              recipient: paymasterFeeRecipient,
+              amount: paymasterFee,
+            });
+          }
         });
       const invocation: ProofInvocationResult =
         await builder.createProofInvocation({ provingBlockId });
@@ -188,37 +258,45 @@ export class Strk20ReceiptCreator implements PrivateReceiptCreator {
       }
       proof = callAndProof.proof.data;
       proofFacts = callAndProof.proof.proofFacts;
-      const feeResult = await this.provider.callContract({
-        contractAddress: this.authorizedPool,
-        entrypoint: "get_fee_amount",
-      });
-      if (feeResult[0] === undefined) throw new Error("pool fee query failed");
-      const feeAmount = BigInt(feeResult[0]);
-      if (feeAmount > this.maxPoolFee) throw new Error("pool fee exceeds local limit");
-      calls =
-        feeAmount === 0n
-          ? callAndProof.call
-          : [
-              {
-                contractAddress: STRK_TOKEN_ADDRESS,
-                entrypoint: "approve",
-                calldata: [this.authorizedPool, feeAmount.toString(), "0"],
-              },
-              callAndProof.call,
-            ];
-      const estimate = await this.account.estimateInvokeFee(calls, {
-        tip: 0n,
-        proofFacts,
-        proof,
-      });
-      if (estimate.overall_fee > this.maxNetworkFee) {
-        throw new Error("network fee exceeds local limit");
-      }
-      resourceBounds = estimate.resourceBounds;
       this.assertInvoiceValidity(requirements, expiresAt);
+      let reservationAmount: bigint;
+      if (this.paymaster) {
+        if (amount + paymasterFee >= 2n ** 128n) {
+          throw new Error("total private spend exceeds u128");
+        }
+        paymasterExecute = {
+          kind: "applyAction",
+          applyActionsCall: toPaymasterCall(callAndProof.call),
+          proof,
+          proofFacts,
+        };
+        reservationAmount = amount + paymasterFee;
+      } else {
+        calls =
+          feeAmount === 0n
+            ? callAndProof.call
+            : [
+                {
+                  contractAddress: STRK_TOKEN_ADDRESS,
+                  entrypoint: "approve",
+                  calldata: [this.authorizedPool, feeAmount.toString(), "0"],
+                },
+                callAndProof.call,
+              ];
+        const estimate = await this.account.estimateInvokeFee(calls, {
+          tip: 0n,
+          proofFacts,
+          proof,
+        });
+        if (estimate.overall_fee > this.maxNetworkFee) {
+          throw new Error("network fee exceeds local limit");
+        }
+        resourceBounds = estimate.resourceBounds;
+        reservationAmount = amount + feeAmount + estimate.overall_fee;
+      }
       const reservation = this.spendBudget.reserve(
         invoiceId,
-        amount + feeAmount + estimate.overall_fee,
+        reservationAmount,
       );
       if (reservation === "limit_exceeded") {
         throw new Error("daily payment limit exceeded");
@@ -233,13 +311,25 @@ export class Strk20ReceiptCreator implements PrivateReceiptCreator {
 
     let transactionHash: string;
     try {
-      const submitted = await this.account.execute(calls, {
-        tip: 0n,
-        resourceBounds,
-        proofFacts,
-        proof,
-      });
-      transactionHash = submitted.transaction_hash;
+      if (this.paymaster && paymasterExecute) {
+        transactionHash = (
+          await this.paymaster.executeTransaction(paymasterExecute)
+        ).transactionHash;
+        if (!/^0x[0-9a-f]+$/i.test(transactionHash)) {
+          throw new Error("paymaster returned an invalid transaction hash");
+        }
+      } else {
+        if (!calls || !resourceBounds) {
+          throw new Error("direct payment preparation is incomplete");
+        }
+        const submitted = await this.account.execute(calls, {
+          tip: 0n,
+          resourceBounds,
+          proofFacts,
+          proof,
+        });
+        transactionHash = submitted.transaction_hash;
+      }
     } catch (error) {
       this.journal.markUnknown(invoiceId);
       throw new Error("payment submission outcome is unknown", { cause: error });
