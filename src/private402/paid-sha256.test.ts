@@ -105,6 +105,20 @@ test("returns 402, settles a private receipt, then returns the tool result", asy
     error: "payment_requirements_mismatch",
   });
 
+  const mismatchedExpiry = structuredClone(payment);
+  mismatchedExpiry.accepted.extra.expiresAt = "1";
+  const wrongExpiry = await handler(
+    new Request(requestUrl, {
+      headers: {
+        "payment-signature": encodePaymentSignatureHeader(mismatchedExpiry),
+      },
+    }),
+  );
+  assert.equal(wrongExpiry.status, 400);
+  assert.deepEqual(await wrongExpiry.json(), {
+    error: "payment_requirements_mismatch",
+  });
+
   const paid = await handler(
     new Request(requestUrl, {
       headers: { "payment-signature": encodePaymentSignatureHeader(payment) },
@@ -226,7 +240,7 @@ test("rejects a receipt for an invoice the server did not issue", async () => {
     amount: "50",
     payTo: recipient,
     maxTimeoutSeconds: 60,
-    extra: { invoiceId: "0x999" },
+    extra: { invoiceId: "0x999", expiresAt: "61000" },
   };
   const signer = new Signer(privateKey);
   const forgedPayment = {

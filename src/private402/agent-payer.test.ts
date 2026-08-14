@@ -15,14 +15,15 @@ const requirements: PaymentRequirements = {
   asset: "0x04718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d",
   amount: "50",
   payTo: "0x222",
-  maxTimeoutSeconds: 60,
-  extra: { invoiceId: "0x555" },
+  maxTimeoutSeconds: 900,
+  extra: { invoiceId: "0x555", expiresAt: "900000" },
 };
 
 function fixture(
   finality: "l2" | "l1" = "l2",
   feeAmount = 7n,
   options: {
+    afterProof?: () => void;
     executeError?: Error;
     generatedEntrypoint?: string;
     generatedPool?: string;
@@ -31,19 +32,28 @@ function fixture(
     proofFacts?: string[];
     providerChainId?: string;
     spendReservation?: SpendReservation;
+    now?: () => number;
   } = {},
 ) {
   const calls: Array<[string, unknown]> = [];
   const attempts = new Map<string, PayerAttempt>();
+  const fingerprints = new Map<string, string>();
   const journal: PayerJournal = {
-    begin: (invoiceId) => {
+    begin: (invoiceId, fingerprint) => {
       const attempt = attempts.get(invoiceId);
-      if (attempt) return attempt;
+      if (attempt) {
+        if (fingerprints.get(invoiceId) !== fingerprint) {
+          throw new Error("invoice requirements changed");
+        }
+        return attempt;
+      }
       attempts.set(invoiceId, { state: "in_progress" });
+      fingerprints.set(invoiceId, fingerprint);
       return { state: "new" };
     },
     release: (invoiceId) => {
       attempts.delete(invoiceId);
+      fingerprints.delete(invoiceId);
     },
     markUnknown: (invoiceId) => {
       attempts.set(invoiceId, { state: "unknown" });
@@ -95,6 +105,7 @@ function fixture(
     },
     executeWithInvocation: async (_invocation: unknown, block: unknown) => {
       calls.push(["executeWithInvocation", block]);
+      options.afterProof?.();
       return {
         callAndProof: {
           call: {
@@ -172,6 +183,9 @@ function fixture(
       finality,
       journal,
       spendBudget,
+      300_000,
+      30_000,
+      options.now ?? (() => 0),
     ),
   };
 }
@@ -312,6 +326,9 @@ test("rejects a non-STRK spend policy during construction", () => {
         "l2",
         {} as PayerJournal,
         {} as SpendBudget,
+        300_000,
+        30_000,
+        () => 0,
       ),
     /STRK payments only/,
   );
@@ -354,6 +371,39 @@ test("reuses a submitted transaction instead of paying twice", async () => {
   );
 });
 
+test("resumes a submitted payment below the new-payment validity margin", async () => {
+  let now = 0;
+  const value = fixture("l2", 7n, { now: () => now });
+  await value.creator.createReceipt(requirements);
+  now = 600_001;
+  await value.creator.createReceipt(requirements);
+
+  assert.equal(
+    value.calls.filter(([name]) => name === "execute").length,
+    1,
+  );
+  assert.equal(
+    value.calls.filter(([name]) => name === "waitForTransaction").length,
+    2,
+  );
+});
+
+test("rejects changed expiry when resuming a submitted invoice", async () => {
+  const value = fixture();
+  await value.creator.createReceipt(requirements);
+  await assert.rejects(
+    value.creator.createReceipt({
+      ...requirements,
+      extra: { ...requirements.extra, expiresAt: "900001" },
+    }),
+    /requirements changed/,
+  );
+  assert.equal(
+    value.calls.filter(([name]) => name === "execute").length,
+    1,
+  );
+});
+
 test("blocks automatic retry after an unknown submission outcome", async () => {
   const value = fixture("l2", 7n, { executeError: new Error("RPC timeout") });
   await assert.rejects(
@@ -377,6 +427,51 @@ test("blocks a retry when spend was reserved before a crash", async () => {
   await assert.rejects(
     value.creator.createReceipt(requirements),
     /budget requires reconciliation/,
+  );
+  assert.equal(
+    value.calls.some(([name]) => name === "execute"),
+    false,
+  );
+  assert.equal(value.attempts.size, 0);
+});
+
+test("rejects an invoice that cannot cover payment settlement", async () => {
+  const value = fixture();
+  await assert.rejects(
+    value.creator.createReceipt({
+      ...requirements,
+      extra: { ...requirements.extra, expiresAt: "299999" },
+    }),
+    /expires before payment can settle/,
+  );
+  assert.equal(value.calls.length, 0);
+  assert.equal(value.attempts.size, 0);
+});
+
+test("rejects an invoice outside the allowed clock skew", async () => {
+  const value = fixture();
+  await assert.rejects(
+    value.creator.createReceipt({
+      ...requirements,
+      extra: { ...requirements.extra, expiresAt: "930001" },
+    }),
+    /allowed clock skew/,
+  );
+  assert.equal(value.calls.length, 0);
+  assert.equal(value.attempts.size, 0);
+});
+
+test("rechecks invoice validity after proving", async () => {
+  let now = 0;
+  const value = fixture("l2", 7n, {
+    afterProof: () => {
+      now = 600_001;
+    },
+    now: () => now,
+  });
+  await assert.rejects(
+    value.creator.createReceipt(requirements),
+    /expires before payment can settle/,
   );
   assert.equal(
     value.calls.some(([name]) => name === "execute"),

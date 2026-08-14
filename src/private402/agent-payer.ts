@@ -19,6 +19,7 @@ import type {
 import {
   PRIVATE_EXACT_SCHEME,
   buildReceiptTypedData,
+  invoiceExpiresAt,
 } from "./signed-receipt.js";
 import type { RequiredFinality } from "./rpc-finality.js";
 import type { PayerJournal } from "./payer-journal.js";
@@ -57,10 +58,22 @@ export class Strk20ReceiptCreator implements PrivateReceiptCreator {
     private readonly requiredFinality: RequiredFinality,
     private readonly journal: PayerJournal,
     private readonly spendBudget: SpendBudget,
+    private readonly minimumInvoiceValidityMs: number,
+    private readonly allowedClockSkewMs: number,
+    private readonly now: () => number = Date.now,
   ) {
     this.authorizedPool = validateAndParseAddress(poolAddress);
     if (validateAndParseAddress(expectedToken) !== STRK_TOKEN_ADDRESS) {
       throw new Error("payer currently supports STRK payments only");
+    }
+    if (
+      !Number.isSafeInteger(minimumInvoiceValidityMs) ||
+      minimumInvoiceValidityMs < 1
+    ) {
+      throw new Error("minimum invoice validity must be a positive safe integer");
+    }
+    if (!Number.isSafeInteger(allowedClockSkewMs) || allowedClockSkewMs < 0) {
+      throw new Error("allowed clock skew must be a non-negative safe integer");
     }
     for (const [name, value] of [
       ["maxAmount", maxAmount],
@@ -92,6 +105,7 @@ export class Strk20ReceiptCreator implements PrivateReceiptCreator {
     }
     const amount = parseAmount(requirements.amount);
     if (amount > this.maxAmount) throw new Error("payment exceeds local limit");
+    const expiresAt = invoiceExpiresAt(requirements);
     const invoiceValue = requirements.extra.invoiceId;
     if (typeof invoiceValue !== "string") throw new Error("invalid invoice ID");
     const preflightMessage = buildReceiptTypedData(requirements, "0x0");
@@ -106,6 +120,12 @@ export class Strk20ReceiptCreator implements PrivateReceiptCreator {
     }
     if (attempt.state === "submitted") {
       return this.finishReceipt(requirements, attempt.transactionHash);
+    }
+    try {
+      this.assertInvoiceValidity(requirements, expiresAt);
+    } catch (error) {
+      this.journal.release(invoiceId);
+      throw error;
     }
 
     let calls: Parameters<PayerAccount["execute"]>[0];
@@ -195,6 +215,7 @@ export class Strk20ReceiptCreator implements PrivateReceiptCreator {
         throw new Error("network fee exceeds local limit");
       }
       resourceBounds = estimate.resourceBounds;
+      this.assertInvoiceValidity(requirements, expiresAt);
       const reservation = this.spendBudget.reserve(
         invoiceId,
         amount + feeAmount + estimate.overall_fee,
@@ -258,6 +279,23 @@ export class Strk20ReceiptCreator implements PrivateReceiptCreator {
       signature,
     };
   }
+
+  private assertInvoiceValidity(
+    requirements: PaymentRequirements,
+    expiresAt: number,
+  ): void {
+    const timeoutMs = requirements.maxTimeoutSeconds * 1_000;
+    if (
+      !Number.isSafeInteger(timeoutMs) ||
+      timeoutMs < 1 ||
+      expiresAt - this.now() > timeoutMs + this.allowedClockSkewMs
+    ) {
+      throw new Error("invoice expiry exceeds allowed clock skew");
+    }
+    if (expiresAt - this.now() < this.minimumInvoiceValidityMs) {
+      throw new Error("invoice expires before payment can settle");
+    }
+  }
 }
 
 function networkChainId(network: Network): string {
@@ -275,6 +313,8 @@ function paymentFingerprint(requirements: PaymentRequirements): string {
         asset: validateAndParseAddress(requirements.asset),
         amount: requirements.amount,
         payTo: validateAndParseAddress(requirements.payTo),
+        maxTimeoutSeconds: requirements.maxTimeoutSeconds,
+        expiresAt: invoiceExpiresAt(requirements),
         invoiceId:
           typeof requirements.extra.invoiceId === "string"
             ? num.toHex(requirements.extra.invoiceId)

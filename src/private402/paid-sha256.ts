@@ -100,6 +100,7 @@ export function createPaidSha256Handler(options: PaidSha256Options) {
           "retry-after": "60",
         });
       }
+      const expiresAt = issuedAt + invoiceTimeoutSeconds * 1_000;
       const paymentRequired = createPrivatePaymentRequired({
         network: options.network,
         token: options.token,
@@ -107,6 +108,7 @@ export function createPaidSha256Handler(options: PaidSha256Options) {
         recipient: options.recipient,
         invoiceId: createInvoiceId(),
         maxTimeoutSeconds: invoiceTimeoutSeconds,
+        expiresAt,
         resource: {
           url: requestedResource,
           description: "SHA-256 digest",
@@ -118,7 +120,7 @@ export function createPaidSha256Handler(options: PaidSha256Options) {
       invoices.set(issuedInvoice, {
         requirements,
         requestUrl: requestedResource,
-        expiresAt: issuedAt + requirements.maxTimeoutSeconds * 1_000,
+        expiresAt,
       });
       return json({ error: "payment_required" }, 402, {
         "payment-required": encodePaymentRequiredHeader(paymentRequired),
@@ -164,6 +166,8 @@ export function createPaidSha256Handler(options: PaidSha256Options) {
       accepted.scheme !== requirements.scheme ||
       accepted.network !== requirements.network ||
       accepted.amount !== requirements.amount ||
+      accepted.maxTimeoutSeconds !== requirements.maxTimeoutSeconds ||
+      accepted.extra.expiresAt !== requirements.extra.expiresAt ||
       !sameFelt(accepted.asset, requirements.asset) ||
       !sameFelt(accepted.payTo, requirements.payTo)
     ) {

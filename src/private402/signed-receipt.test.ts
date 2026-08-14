@@ -11,6 +11,7 @@ import {
   PrivateExactFacilitator,
   buildReceiptTypedData,
   createPrivatePaymentRequired,
+  invoiceExpiresAt,
   type PaymentEvidence,
   type SignedReceipt,
 } from "./signed-receipt.js";
@@ -29,7 +30,7 @@ const requirements = {
   amount: "50",
   payTo: recipient,
   maxTimeoutSeconds: 60,
-  extra: { invoiceId },
+  extra: { invoiceId, expiresAt: "1000000" },
 };
 
 const evidence: PaymentEvidence = {
@@ -103,6 +104,7 @@ test("creates an x402 payment payload from a private payment requirement", async
     recipient,
     invoiceId,
     maxTimeoutSeconds: 900,
+    expiresAt: 1_000_000,
     resource: { url: "https://seller.example/private-data" },
   });
   const client = new x402Client().register(
@@ -132,6 +134,40 @@ test("rejects a signature from another payer key", async () => {
 
   assert.equal(result.isValid, false);
   assert.equal(result.invalidReason, "invalid_signature");
+});
+
+test("rejects a signature created for another invoice expiry", async () => {
+  const privateKey = "0x1234567890abcdef";
+  const receipt = await signedReceipt(privateKey);
+  const changedRequirements = {
+    ...requirements,
+    extra: { ...requirements.extra, expiresAt: "1000001" },
+  };
+  const instance = facilitator(privateKey);
+  const verified = await instance.verify(
+    {
+      x402Version: 2,
+      accepted: changedRequirements,
+      payload: receipt,
+    },
+    changedRequirements,
+  );
+
+  assert.equal(verified.isValid, false);
+  assert.equal(verified.invalidReason, "invalid_signature");
+});
+
+test("rejects malformed absolute invoice expiry", () => {
+  for (const expiresAt of [undefined, "abc", "9007199254740992", "0"]) {
+    assert.throws(
+      () =>
+        invoiceExpiresAt({
+          ...requirements,
+          extra: { ...requirements.extra, expiresAt },
+        }),
+      /invalid_invoice_expiry/,
+    );
+  }
 });
 
 test("rejects evidence with the wrong amount", async () => {

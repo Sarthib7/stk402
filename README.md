@@ -38,6 +38,8 @@ VERIFIED (`src/private402/server-config.ts` and `src/private402/rpc-finality.ts`
 
 VERIFIED (`src/private402/server-config.ts`): The default invoice lifetime is 900 seconds. Set `STK402_INVOICE_TIMEOUT_SECONDS` to a positive integer when production proof latency needs more time.
 
+VERIFIED (`src/private402/signed-receipt.ts` and `src/private402/agent-payer.ts`): Each receipt binds the absolute invoice expiry. For new payments, the payer checks the remaining lifetime before proving and again before submission. The payer also enforces a configured clock-skew limit.
+
 VERIFIED (local smoke command on 2026-08-14): The entrypoint listened on `127.0.0.1:3402`. A request to `/tools/sha256?text=stk402` returned HTTP 402 and bound the challenge to `https://seller.example/tools/sha256?text=stk402`.
 
 ## Mainnet trust boundary

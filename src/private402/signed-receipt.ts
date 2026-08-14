@@ -48,6 +48,7 @@ export function createPrivatePaymentRequired(input: {
   recipient: string;
   invoiceId: string;
   maxTimeoutSeconds: number;
+  expiresAt: number;
   resource: ResourceInfo;
 }): PaymentRequired {
   if (input.amount <= 0n || input.amount >= 2n ** 128n) {
@@ -55,9 +56,13 @@ export function createPrivatePaymentRequired(input: {
   }
   if (
     !Number.isSafeInteger(input.maxTimeoutSeconds) ||
-    input.maxTimeoutSeconds < 1
+    input.maxTimeoutSeconds < 1 ||
+    input.maxTimeoutSeconds > Math.floor(Number.MAX_SAFE_INTEGER / 1_000)
   ) {
     throw new Error("maxTimeoutSeconds must be a positive safe integer");
+  }
+  if (!Number.isSafeInteger(input.expiresAt) || input.expiresAt < 1) {
+    throw new Error("expiresAt must be a positive safe integer");
   }
 
   const requirements: PaymentRequirements = {
@@ -67,7 +72,10 @@ export function createPrivatePaymentRequired(input: {
     amount: input.amount.toString(),
     payTo: address(input.recipient),
     maxTimeoutSeconds: input.maxTimeoutSeconds,
-    extra: { invoiceId: num.toHex(input.invoiceId) },
+    extra: {
+      invoiceId: num.toHex(input.invoiceId),
+      expiresAt: input.expiresAt.toString(),
+    },
   };
   chainId(input.network);
   invoiceId(requirements);
@@ -137,6 +145,18 @@ function invoiceId(requirements: PaymentRequirements): string {
   return num.toHex(value);
 }
 
+export function invoiceExpiresAt(requirements: PaymentRequirements): number {
+  const value = requirements.extra.expiresAt;
+  if (typeof value !== "string" || !/^\d+$/.test(value)) {
+    throw new Error("invalid_invoice_expiry");
+  }
+  const expiresAt = Number(value);
+  if (!Number.isSafeInteger(expiresAt) || expiresAt < 1) {
+    throw new Error("invalid_invoice_expiry");
+  }
+  return expiresAt;
+}
+
 function isFelt(value: unknown): value is string {
   if (typeof value !== "string" || !/^0x[0-9a-f]+$/i.test(value)) return false;
   try {
@@ -157,7 +177,7 @@ export function buildReceiptTypedData(
   return {
     domain: {
       name: "STK402",
-      version: "1",
+      version: "2",
       chainId: chainId(requirements.network),
       revision: "1",
     },
@@ -175,6 +195,7 @@ export function buildReceiptTypedData(
         { name: "recipient", type: "ContractAddress" },
         { name: "token", type: "ContractAddress" },
         { name: "amount", type: "u128" },
+        { name: "expires_at", type: "felt" },
       ],
     },
     message: {
@@ -183,6 +204,7 @@ export function buildReceiptTypedData(
       recipient: address(requirements.payTo),
       token: address(requirements.asset),
       amount: requirements.amount,
+      expires_at: invoiceExpiresAt(requirements).toString(),
     },
   };
 }
