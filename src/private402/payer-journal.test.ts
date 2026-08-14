@@ -12,6 +12,7 @@ test("persists submitted transactions and blocks duplicate work", () => {
   const first = new SqlitePayerJournal(path);
   try {
     assert.deepEqual(first.begin("0x1", "fingerprint"), { state: "new" });
+    assert.deepEqual(first.inspect("0x1"), { state: "in_progress" });
     assert.deepEqual(first.begin("0x1", "fingerprint"), {
       state: "in_progress",
     });
@@ -21,6 +22,10 @@ test("persists submitted transactions and blocks duplicate work", () => {
     const reopened = new SqlitePayerJournal(path);
     try {
       assert.deepEqual(reopened.begin("0x1", "fingerprint"), {
+        state: "submitted",
+        transactionHash: "0x2",
+      });
+      assert.deepEqual(reopened.inspect("0x1"), {
         state: "submitted",
         transactionHash: "0x2",
       });

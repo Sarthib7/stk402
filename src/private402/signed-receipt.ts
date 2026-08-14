@@ -110,24 +110,32 @@ export interface ReceiptSignatureVerifier {
 
 export type ClaimConsumption =
   | "accepted"
+  | "already_accepted"
   | "invoice_used"
   | "transaction_used";
 
 export interface ClaimLedger {
   consume(invoiceId: string, transactionHash: string): ClaimConsumption;
+  transactionForInvoice(invoiceId: string): string | null;
 }
 
 export class InMemoryClaimLedger implements ClaimLedger {
-  private readonly invoices = new Set<string>();
-  private readonly transactions = new Set<string>();
+  private readonly invoices = new Map<string, string>();
+  private readonly transactions = new Map<string, string>();
 
   consume(invoiceId: string, transactionHash: string): ClaimConsumption {
+    const invoiceTransaction = this.invoices.get(invoiceId);
+    if (invoiceTransaction === transactionHash) return "already_accepted";
+    if (invoiceTransaction) return "invoice_used";
     if (this.transactions.has(transactionHash)) return "transaction_used";
-    if (this.invoices.has(invoiceId)) return "invoice_used";
 
-    this.transactions.add(transactionHash);
-    this.invoices.add(invoiceId);
+    this.transactions.set(transactionHash, invoiceId);
+    this.invoices.set(invoiceId, transactionHash);
     return "accepted";
+  }
+
+  transactionForInvoice(invoiceId: string): string | null {
+    return this.invoices.get(invoiceId) ?? null;
   }
 }
 
@@ -322,7 +330,7 @@ export class PrivateExactFacilitator implements SchemeNetworkFacilitator {
     }
 
     const consumed = this.options.ledger.consume(receipt.invoiceId, receipt.transactionHash);
-    if (consumed !== "accepted") {
+    if (consumed !== "accepted" && consumed !== "already_accepted") {
       return {
         success: false,
         errorReason: consumed,

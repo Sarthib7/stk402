@@ -7,6 +7,7 @@ export type PayerAttempt =
 
 export interface PayerJournal {
   begin(invoiceId: string, fingerprint: string): PayerAttempt;
+  inspect(invoiceId: string): Exclude<PayerAttempt, { state: "new" }> | null;
   release(invoiceId: string): void;
   markUnknown(invoiceId: string): void;
   markSubmitted(invoiceId: string, transactionHash: string): void;
@@ -70,6 +71,27 @@ export class SqlitePayerJournal implements PayerJournal {
       }
       return { state: row.state };
     }
+  }
+
+  inspect(invoiceId: string): Exclude<PayerAttempt, { state: "new" }> | null {
+    const row = this.database
+      .prepare(
+        "SELECT state, transaction_hash FROM payer_attempts WHERE invoice_id = ?",
+      )
+      .get(invoiceId) as
+      | {
+          state: "in_progress" | "unknown" | "submitted";
+          transaction_hash: string | null;
+        }
+      | undefined;
+    if (!row) return null;
+    if (row.state === "submitted" && row.transaction_hash) {
+      return { state: "submitted", transactionHash: row.transaction_hash };
+    }
+    if (row.state === "submitted") {
+      throw new Error("submitted payer attempt has no transaction hash");
+    }
+    return { state: row.state };
   }
 
   release(invoiceId: string): void {

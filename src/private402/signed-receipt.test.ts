@@ -71,7 +71,7 @@ function facilitator(privateKey: string) {
   return new x402Facilitator().register(network, mechanism);
 }
 
-test("settles one signed private receipt and rejects its replay", async () => {
+test("settles one signed private receipt and accepts its exact retry", async () => {
   const privateKey = "0x1234567890abcdef";
   const receipt = await signedReceipt(privateKey);
   const paymentPayload = {
@@ -91,8 +91,8 @@ test("settles one signed private receipt and rejects its replay", async () => {
   assert.equal(settled.amount, "50");
 
   const replay = await instance.settle(paymentPayload, requirements);
-  assert.equal(replay.success, false);
-  assert.equal(replay.errorReason, "transaction_used");
+  assert.equal(replay.success, true);
+  assert.equal(replay.transaction, transactionHash);
 });
 
 test("creates an x402 payment payload from a private payment requirement", async () => {

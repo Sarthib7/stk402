@@ -16,6 +16,10 @@ import {
   PRIVATE_EXACT_SCHEME,
   createPrivatePaymentRequired,
 } from "./signed-receipt.js";
+import {
+  InMemoryInvoiceStore,
+  type InvoiceStore,
+} from "./invoice-store.js";
 
 interface PaymentSettler {
   settle(
@@ -35,12 +39,9 @@ interface PaidSha256Options {
   resourceUrl?: (request: Request) => string;
   maxOutstandingInvoices?: number;
   invoiceTimeoutSeconds?: number;
-}
-
-interface IssuedInvoice {
-  requirements: PaymentRequirements;
-  requestUrl: string;
-  expiresAt: number;
+  settlementLeaseMs?: number;
+  invoiceStore?: InvoiceStore;
+  acceptedTransaction?: (invoiceId: string) => string | null;
 }
 
 function sameFelt(left: string, right: string): boolean {
@@ -66,13 +67,18 @@ export function createPaidSha256Handler(options: PaidSha256Options) {
   const resourceUrl = options.resourceUrl ?? ((request: Request) => request.url);
   const maxOutstandingInvoices = options.maxOutstandingInvoices ?? 1_000;
   const invoiceTimeoutSeconds = options.invoiceTimeoutSeconds ?? 60;
+  const settlementLeaseMs = options.settlementLeaseMs ?? 60_000;
   if (!Number.isSafeInteger(maxOutstandingInvoices) || maxOutstandingInvoices < 1) {
     throw new Error("maxOutstandingInvoices must be a positive safe integer");
   }
   if (!Number.isSafeInteger(invoiceTimeoutSeconds) || invoiceTimeoutSeconds < 1) {
     throw new Error("invoiceTimeoutSeconds must be a positive safe integer");
   }
-  const invoices = new Map<string, IssuedInvoice>();
+  if (!Number.isSafeInteger(settlementLeaseMs) || settlementLeaseMs < 1) {
+    throw new Error("settlementLeaseMs must be a positive safe integer");
+  }
+  const invoices = options.invoiceStore ?? new InMemoryInvoiceStore();
+  const acceptedTransaction = options.acceptedTransaction ?? (() => null);
 
   return async function handle(request: Request): Promise<Response> {
     if (request.method !== "GET") {
@@ -92,10 +98,8 @@ export function createPaidSha256Handler(options: PaidSha256Options) {
     const paymentHeader = request.headers.get("payment-signature");
     if (!paymentHeader) {
       const issuedAt = now();
-      for (const [id, invoice] of invoices) {
-        if (invoice.expiresAt < issuedAt) invoices.delete(id);
-      }
-      if (invoices.size >= maxOutstandingInvoices) {
+      invoices.pruneExpired(issuedAt);
+      if (invoices.countOutstanding(issuedAt) >= maxOutstandingInvoices) {
         return json({ error: "invoice_capacity_reached" }, 503, {
           "retry-after": "60",
         });
@@ -117,7 +121,7 @@ export function createPaidSha256Handler(options: PaidSha256Options) {
       });
       const requirements = paymentRequired.accepts[0]!;
       const issuedInvoice = requirements.extra.invoiceId as string;
-      invoices.set(issuedInvoice, {
+      invoices.issue(issuedInvoice, {
         requirements,
         requestUrl: requestedResource,
         expiresAt,
@@ -156,8 +160,23 @@ export function createPaidSha256Handler(options: PaidSha256Options) {
     if (requestedResource !== invoice.requestUrl) {
       return json({ error: "invoice_mismatch" }, 400);
     }
-    if (now() > invoice.expiresAt) {
-      invoices.delete(claimedInvoice);
+    const receiptValue = payload.payload;
+    const claimedTransaction =
+      receiptValue &&
+      typeof receiptValue === "object" &&
+      typeof receiptValue.transactionHash === "string"
+        ? receiptValue.transactionHash
+        : null;
+    const settledTransaction = acceptedTransaction(claimedInvoice);
+    const exactSettledRetry =
+      claimedTransaction !== null &&
+      settledTransaction !== null &&
+      sameFelt(claimedTransaction, settledTransaction);
+    if (
+      now() > invoice.expiresAt &&
+      settledTransaction !== null &&
+      !exactSettledRetry
+    ) {
       return json({ error: "invoice_expired" }, 400);
     }
     const requirements = invoice.requirements;
@@ -174,12 +193,52 @@ export function createPaidSha256Handler(options: PaidSha256Options) {
       return json({ error: "payment_requirements_mismatch" }, 400);
     }
 
-    const settlement = await options.facilitator.settle(payload, requirements);
+    let settlementStarted = false;
+    let settlementLeaseId: string | null = null;
+    if (exactSettledRetry) {
+      invoices.acceptSettlement(claimedInvoice);
+    } else {
+      if (claimedTransaction === null) {
+        return json({ error: "invalid_receipt" }, 402);
+      }
+      settlementLeaseId = randomBytes(16).toString("hex");
+      const start = invoices.beginSettlement(
+        claimedInvoice,
+        claimedTransaction,
+        settlementLeaseId,
+        now(),
+        settlementLeaseMs,
+      );
+      if (start === "expired") {
+        invoices.pruneExpired(now());
+        return json({ error: "invoice_expired" }, 400);
+      }
+      if (start !== "started") {
+        return json({ error: "invoice_settlement_in_progress" }, 409, {
+          "retry-after": "1",
+        });
+      }
+      settlementStarted = true;
+    }
+
+    let settlement: SettleResponse;
+    try {
+      settlement = await options.facilitator.settle(payload, requirements);
+    } catch (error) {
+      if (settlementStarted) {
+        invoices.failSettlement(claimedInvoice, settlementLeaseId!, now());
+      }
+      throw error;
+    }
     if (!settlement.success) {
+      if (settlementStarted) {
+        invoices.failSettlement(claimedInvoice, settlementLeaseId!, now());
+      }
       return json({ error: settlement.errorReason ?? "settlement_failed" }, 402, {
         "payment-response": encodePaymentResponseHeader(settlement),
       });
     }
+    invoices.acceptSettlement(claimedInvoice);
     return json(
       {
         algorithm: "sha256",

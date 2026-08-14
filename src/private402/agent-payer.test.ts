@@ -51,6 +51,10 @@ function fixture(
       fingerprints.set(invoiceId, fingerprint);
       return { state: "new" };
     },
+    inspect: (invoiceId) => {
+      const attempt = attempts.get(invoiceId);
+      return attempt?.state === "new" ? null : attempt ?? null;
+    },
     release: (invoiceId) => {
       attempts.delete(invoiceId);
       fingerprints.delete(invoiceId);

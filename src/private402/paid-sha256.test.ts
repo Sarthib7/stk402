@@ -1,4 +1,7 @@
 import assert from "node:assert/strict";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import test from "node:test";
 
 import { x402Client } from "@x402/core/client";
@@ -6,6 +9,7 @@ import { x402Facilitator } from "@x402/core/facilitator";
 import {
   decodePaymentRequiredHeader,
   decodePaymentResponseHeader,
+  decodePaymentSignatureHeader,
   encodePaymentSignatureHeader,
 } from "@x402/core/http";
 import { Signer, stark, typedData } from "starknet";
@@ -16,9 +20,12 @@ import {
   PrivateExactFacilitator,
   buildReceiptTypedData,
   type PaymentEvidence,
+  type ClaimLedger,
 } from "./signed-receipt.js";
 import { createPaidSha256Handler } from "./paid-sha256.js";
 import { createHandlerServer } from "./http-server.js";
+import { SqliteClaimLedger } from "./claim-ledger.js";
+import { SqliteInvoiceStore } from "./invoice-store.js";
 
 const network = "starknet:SN_SEPOLIA" as const;
 const payer = "0x111";
@@ -27,7 +34,7 @@ const token = "0x333";
 const transactionHash = "0x444";
 const privateKey = "0x1234567890abcdef";
 
-function testFacilitator() {
+function testFacilitator(ledger: ClaimLedger = new InMemoryClaimLedger()) {
   const evidence: PaymentEvidence = {
     transactionHash,
     payer,
@@ -37,7 +44,7 @@ function testFacilitator() {
     final: true,
   };
   const mechanism = new PrivateExactFacilitator({
-    ledger: new InMemoryClaimLedger(),
+    ledger,
     evidenceReader: {
       findPayment: async (hash) =>
         BigInt(hash) === BigInt(transactionHash) ? evidence : null,
@@ -56,13 +63,17 @@ function testFacilitator() {
 }
 
 test("returns 402, settles a private receipt, then returns the tool result", async () => {
+  const ledger = new InMemoryClaimLedger();
+  let invoiceId = 0x555n;
   const handler = createPaidSha256Handler({
     network,
     token,
     amount: 50n,
     recipient,
-    facilitator: testFacilitator(),
-    createInvoiceId: () => "0x555",
+    facilitator: testFacilitator(ledger),
+    acceptedTransaction: (invoice) => ledger.transactionForInvoice(invoice),
+    createInvoiceId: () => `0x${(invoiceId++).toString(16)}`,
+    maxOutstandingInvoices: 1,
   });
   const requestUrl = "https://seller.example/tools/sha256?text=stk402";
 
@@ -140,8 +151,16 @@ test("returns 402, settles a private receipt, then returns the tool result", asy
       headers: { "payment-signature": encodePaymentSignatureHeader(payment) },
     }),
   );
-  assert.equal(replay.status, 402);
-  assert.deepEqual(await replay.json(), { error: "transaction_used" });
+  assert.equal(replay.status, 200);
+  assert.deepEqual(await replay.json(), {
+    algorithm: "sha256",
+    digest: "a65070b43131abbdd218f04cd403f72a1e8ae00d6f3022b91a794f75aa97e7ed",
+  });
+
+  const nextInvoice = await handler(
+    new Request("https://seller.example/tools/sha256?text=next"),
+  );
+  assert.equal(nextInvoice.status, 402);
 });
 
 test("rejects an invalid tool request before asking for payment", async () => {
@@ -394,4 +413,224 @@ test("serves the payment challenge over a real HTTP socket", async (context) => 
     decodePaymentResponseHeader(paid.headers.get("payment-response")!).success,
     true,
   );
+});
+
+test("retries an accepted payment after expiry and server restart", async () => {
+  const directory = mkdtempSync(join(tmpdir(), "stk402-restart-retry-"));
+  const path = join(directory, "claims.sqlite");
+  const requestUrl = "https://seller.example/tools/sha256?text=stk402";
+  let now = 1_000;
+  let paymentHeader: string;
+  let invoiceId = 0x555n;
+  const firstLedger = new SqliteClaimLedger(path);
+  const firstInvoices = new SqliteInvoiceStore(path);
+  try {
+    const baseFacilitator = testFacilitator(firstLedger);
+    let settlementEntered: (() => void) | undefined;
+    let releaseSettlement: (() => void) | undefined;
+    const entered = new Promise<void>((resolve) => {
+      settlementEntered = resolve;
+    });
+    const blocked = new Promise<void>((resolve) => {
+      releaseSettlement = resolve;
+    });
+    const first = createPaidSha256Handler({
+      network,
+      token,
+      amount: 50n,
+      recipient,
+      facilitator: {
+        settle: async (payload, requirements) => {
+          settlementEntered?.();
+          await blocked;
+          return baseFacilitator.settle(payload, requirements);
+        },
+      },
+      acceptedTransaction: (invoiceId) =>
+        firstLedger.transactionForInvoice(invoiceId),
+      invoiceStore: firstInvoices,
+      invoiceTimeoutSeconds: 2,
+      createInvoiceId: () => `0x${(invoiceId++).toString(16)}`,
+      now: () => now,
+    });
+    const unpaid = await first(new Request(requestUrl));
+    const challenge = decodePaymentRequiredHeader(
+      unpaid.headers.get("payment-required")!,
+    );
+    const signer = new Signer(privateKey);
+    const payment = await new x402Client()
+      .register(
+        network,
+        new PrivateExactClient({
+          createReceipt: async (requirements) => ({
+            invoiceId: requirements.extra.invoiceId as string,
+            transactionHash,
+            payer,
+            signature: stark.signatureToHexArray(
+              await signer.signMessage(
+                buildReceiptTypedData(requirements, transactionHash),
+                payer,
+              ),
+            ),
+          }),
+        }),
+      )
+      .createPaymentPayload(challenge);
+    paymentHeader = encodePaymentSignatureHeader(payment);
+    const paidPromise = first(
+      new Request(requestUrl, {
+        headers: { "payment-signature": paymentHeader },
+      }),
+    );
+    await entered;
+    now = 5_000;
+    const prune = await first(
+      new Request("https://seller.example/tools/sha256?text=prune"),
+    );
+    assert.equal(prune.status, 402);
+    releaseSettlement?.();
+    const paid = await paidPromise;
+    assert.equal(paid.status, 200);
+  } finally {
+    firstLedger.close();
+    firstInvoices.close();
+  }
+
+  const reopenedLedger = new SqliteClaimLedger(path);
+  const reopenedInvoices = new SqliteInvoiceStore(path);
+  try {
+    const reopened = createPaidSha256Handler({
+      network,
+      token,
+      amount: 50n,
+      recipient,
+      facilitator: testFacilitator(reopenedLedger),
+      acceptedTransaction: (invoiceId) =>
+        reopenedLedger.transactionForInvoice(invoiceId),
+      invoiceStore: reopenedInvoices,
+      invoiceTimeoutSeconds: 2,
+      now: () => now,
+    });
+    const altered = decodePaymentSignatureHeader(paymentHeader!);
+    (altered.payload as { transactionHash: string }).transactionHash = "0x445";
+    const mismatched = await reopened(
+      new Request(requestUrl, {
+        headers: {
+          "payment-signature": encodePaymentSignatureHeader(altered),
+        },
+      }),
+    );
+    assert.equal(mismatched.status, 400);
+    assert.deepEqual(await mismatched.json(), { error: "invoice_expired" });
+    const retried = await reopened(
+      new Request(requestUrl, {
+        headers: { "payment-signature": paymentHeader! },
+      }),
+    );
+    assert.equal(retried.status, 200);
+    assert.deepEqual(await retried.json(), {
+      algorithm: "sha256",
+      digest: "a65070b43131abbdd218f04cd403f72a1e8ae00d6f3022b91a794f75aa97e7ed",
+    });
+  } finally {
+    reopenedLedger.close();
+    reopenedInvoices.close();
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test("recovers a crashed settlement after its lease expires", async () => {
+  const directory = mkdtempSync(join(tmpdir(), "stk402-crashed-settlement-"));
+  const path = join(directory, "claims.sqlite");
+  const requestUrl = "https://seller.example/tools/sha256?text=stk402";
+  let now = 1_000;
+  let paymentHeader: string;
+  const firstLedger = new SqliteClaimLedger(path);
+  const firstInvoices = new SqliteInvoiceStore(path);
+  try {
+    const first = createPaidSha256Handler({
+      network,
+      token,
+      amount: 50n,
+      recipient,
+      facilitator: testFacilitator(firstLedger),
+      acceptedTransaction: (invoice) =>
+        firstLedger.transactionForInvoice(invoice),
+      invoiceStore: firstInvoices,
+      invoiceTimeoutSeconds: 2,
+      settlementLeaseMs: 1_000,
+      createInvoiceId: () => "0x555",
+      now: () => now,
+    });
+    const unpaid = await first(new Request(requestUrl));
+    const challenge = decodePaymentRequiredHeader(
+      unpaid.headers.get("payment-required")!,
+    );
+    const signer = new Signer(privateKey);
+    const payment = await new x402Client()
+      .register(
+        network,
+        new PrivateExactClient({
+          createReceipt: async (requirements) => ({
+            invoiceId: requirements.extra.invoiceId as string,
+            transactionHash,
+            payer,
+            signature: stark.signatureToHexArray(
+              await signer.signMessage(
+                buildReceiptTypedData(requirements, transactionHash),
+                payer,
+              ),
+            ),
+          }),
+        }),
+      )
+      .createPaymentPayload(challenge);
+    paymentHeader = encodePaymentSignatureHeader(payment);
+    assert.equal(
+      firstInvoices.beginSettlement(
+        "0x555",
+        transactionHash,
+        "crashed-worker",
+        now,
+        1_000,
+      ),
+      "started",
+    );
+  } finally {
+    firstLedger.close();
+    firstInvoices.close();
+  }
+
+  now = 5_000;
+  const reopenedLedger = new SqliteClaimLedger(path);
+  const reopenedInvoices = new SqliteInvoiceStore(path);
+  try {
+    const reopened = createPaidSha256Handler({
+      network,
+      token,
+      amount: 50n,
+      recipient,
+      facilitator: testFacilitator(reopenedLedger),
+      acceptedTransaction: (invoice) =>
+        reopenedLedger.transactionForInvoice(invoice),
+      invoiceStore: reopenedInvoices,
+      invoiceTimeoutSeconds: 2,
+      settlementLeaseMs: 1_000,
+      now: () => now,
+    });
+    const paid = await reopened(
+      new Request(requestUrl, {
+        headers: { "payment-signature": paymentHeader! },
+      }),
+    );
+    assert.equal(paid.status, 200);
+    assert.equal(
+      reopenedLedger.transactionForInvoice("0x555"),
+      transactionHash,
+    );
+  } finally {
+    reopenedLedger.close();
+    reopenedInvoices.close();
+    rmSync(directory, { recursive: true, force: true });
+  }
 });

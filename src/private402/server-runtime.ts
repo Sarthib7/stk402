@@ -6,6 +6,7 @@ import { RpcProvider } from "starknet";
 
 import { SqliteClaimLedger } from "./claim-ledger.js";
 import { createHandlerServer } from "./http-server.js";
+import { SqliteInvoiceStore } from "./invoice-store.js";
 import { createPaidSha256Handler } from "./paid-sha256.js";
 import { RpcFinalityChecker } from "./rpc-finality.js";
 import {
@@ -36,6 +37,7 @@ export async function createPaidServerRuntime(
 
   mkdirSync(dirname(config.ledgerPath), { recursive: true });
   const ledger = new SqliteClaimLedger(config.ledgerPath);
+  const invoices = new SqliteInvoiceStore(config.ledgerPath);
   const finality = new RpcFinalityChecker(provider, config.requiredFinality);
   const evidenceReader = new Strk20HistoryEvidenceReader(
     indexer,
@@ -60,6 +62,9 @@ export async function createPaidServerRuntime(
     facilitator,
     maxOutstandingInvoices: config.maxOutstandingInvoices,
     invoiceTimeoutSeconds: config.invoiceTimeoutSeconds,
+    invoiceStore: invoices,
+    acceptedTransaction: (invoiceId) =>
+      ledger.transactionForInvoice(invoiceId),
     resourceUrl: (request) =>
       publicResourceUrl(request.url, config.publicOrigin),
   });
@@ -67,6 +72,9 @@ export async function createPaidServerRuntime(
   return {
     handler,
     server: createHandlerServer(handler),
-    close: () => ledger.close(),
+    close: () => {
+      ledger.close();
+      invoices.close();
+    },
   };
 }

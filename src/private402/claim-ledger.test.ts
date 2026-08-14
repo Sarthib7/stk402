@@ -16,6 +16,7 @@ test("persists consumed invoices and transactions", (context) => {
   first.close();
 
   const reopened = new SqliteClaimLedger(path);
+  assert.equal(reopened.consume("0x1", "0x2"), "already_accepted");
   assert.equal(reopened.consume("0x1", "0x3"), "invoice_used");
   assert.equal(reopened.consume("0x4", "0x2"), "transaction_used");
   reopened.close();
@@ -27,6 +28,7 @@ test("keeps an accepted claim after a rejected collision", (context) => {
   const ledger = new SqliteClaimLedger(join(directory, "claims.sqlite"));
 
   assert.equal(ledger.consume("0x1", "0x2"), "accepted");
+  assert.equal(ledger.consume("0x1", "0x2"), "already_accepted");
   assert.equal(ledger.consume("0x3", "0x2"), "transaction_used");
   assert.equal(ledger.consume("0x1", "0x4"), "invoice_used");
 

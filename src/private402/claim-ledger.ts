@@ -24,6 +24,16 @@ export class SqliteClaimLedger implements ClaimLedger {
         .run(invoiceId, transactionHash);
       return "accepted";
     } catch {
+      const invoice = this.database
+        .prepare(
+          "SELECT transaction_hash FROM payment_claims WHERE invoice_id = ? LIMIT 1",
+        )
+        .get(invoiceId) as { transaction_hash: string } | undefined;
+      if (invoice?.transaction_hash === transactionHash) {
+        return "already_accepted";
+      }
+      if (invoice) return "invoice_used";
+
       const transactionExists = this.database
         .prepare(
           "SELECT 1 FROM payment_claims WHERE transaction_hash = ? LIMIT 1",
@@ -31,13 +41,17 @@ export class SqliteClaimLedger implements ClaimLedger {
         .get(transactionHash);
       if (transactionExists) return "transaction_used";
 
-      const invoiceExists = this.database
-        .prepare("SELECT 1 FROM payment_claims WHERE invoice_id = ? LIMIT 1")
-        .get(invoiceId);
-      if (invoiceExists) return "invoice_used";
-
       throw new Error("failed to persist payment claim");
     }
+  }
+
+  transactionForInvoice(invoiceId: string): string | null {
+    const row = this.database
+      .prepare(
+        "SELECT transaction_hash FROM payment_claims WHERE invoice_id = ? LIMIT 1",
+      )
+      .get(invoiceId) as { transaction_hash: string } | undefined;
+    return row?.transaction_hash ?? null;
   }
 
   close(): void {
