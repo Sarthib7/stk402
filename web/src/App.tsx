@@ -19,6 +19,14 @@ const SKILL_URL =
     ? `${window.location.origin}/SKILL.md`
     : "/SKILL.md");
 
+const STEP_COPY: Record<string, string> = {
+  request: "Reading invoice",
+  envelope: "Opening encrypted terms",
+  transfer: "Proving shielded transfer",
+  receipt: "Signing receipt",
+  settle: "Settling Paid Resource",
+};
+
 function loadEnvelopeKeys() {
   const serverPublicKey =
     import.meta.env.VITE_STK402_ENVELOPE_PUBLIC_KEY?.trim() || "";
@@ -37,6 +45,23 @@ function loadEnvelopeKeys() {
   return { serverPublicKey, clientPrivateKey, clientPublicKey };
 }
 
+function shortAddress(value: string): string {
+  if (value.length < 14) return value;
+  return `${value.slice(0, 6)}…${value.slice(-4)}`;
+}
+
+function chainLabel(chainId: string): string {
+  if (chainId.includes("SN_MAIN") || chainId.endsWith("534e5f4d41494e")) {
+    return "Mainnet";
+  }
+  if (chainId.includes("SN_SEPOLIA") || chainId.includes("SEPOLIA")) {
+    return "Sepolia";
+  }
+  return chainId;
+}
+
+type ProgressRow = { id: number; step: string; detail?: string };
+
 export default function App() {
   const [wallets, setWallets] = useState<WalletWithStarknetFeatures[]>([]);
   const [account, setAccount] = useState<WalletAccountV6 | null>(null);
@@ -46,9 +71,14 @@ export default function App() {
   const [strk20Note, setStrk20Note] = useState("");
   const [resourceUrl, setResourceUrl] = useState(DEFAULT_RESOURCE);
   const [busy, setBusy] = useState(false);
-  const [log, setLog] = useState<string[]>([]);
-  const [result, setResult] = useState<string>("");
+  const [log, setLog] = useState<ProgressRow[]>([]);
+  const [result, setResult] = useState<{
+    status: number;
+    transactionHash: string;
+    body: unknown;
+  } | null>(null);
   const [error, setError] = useState("");
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     setWallets(listPickableWallets());
@@ -69,7 +99,7 @@ export default function App() {
       setStrk20Ok(connected.strk20.ok);
       setStrk20Note(
         connected.strk20.ok
-          ? `STRK20 Wallet API ok (${connected.strk20.versions.join(", ") || "ok"})`
+          ? `STRK20 ready (${connected.strk20.versions.join(", ") || "ok"})`
           : connected.strk20.reason || "STRK20 not supported",
       );
     } catch (err) {
@@ -79,17 +109,28 @@ export default function App() {
     }
   }
 
+  function onDisconnect() {
+    setAccount(null);
+    setAddress("");
+    setChainId("");
+    setStrk20Ok(false);
+    setStrk20Note("");
+    setResult(null);
+    setLog([]);
+    setError("");
+  }
+
   async function onPay() {
     if (!account || !address) {
-      setError("connect Ready or Xverse first");
+      setError("Connect Ready or Xverse first");
       return;
     }
     if (!strk20Ok) {
-      setError("connected wallet cannot run STRK20 private pay");
+      setError("Connected wallet cannot run STRK20 private pay");
       return;
     }
     setError("");
-    setResult("");
+    setResult(null);
     setLog([]);
     setBusy(true);
     try {
@@ -99,10 +140,13 @@ export default function App() {
         payerAddress: address,
         envelope: loadEnvelopeKeys(),
         onProgress: ({ step, detail }) => {
-          setLog((rows) => [...rows, detail ? `${step}: ${detail}` : step]);
+          setLog((rows) => [
+            ...rows,
+            { id: rows.length + 1, step, detail },
+          ]);
         },
       });
-      setResult(JSON.stringify(paid, null, 2));
+      setResult(paid);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -110,101 +154,222 @@ export default function App() {
     }
   }
 
+  async function copySkill() {
+    try {
+      await navigator.clipboard.writeText(SKILL_URL);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1600);
+    } catch {
+      setCopied(false);
+    }
+  }
+
+  const canPay = Boolean(account && strk20Ok && !busy);
+  const showStatus = log.length > 0 || result || error;
+
   return (
-    <main className="page">
+    <div className="shell">
+      <div className="atmosphere" aria-hidden="true">
+        <div className="mist mist-a" />
+        <div className="mist mist-b" />
+        <div className="cipher-grid" />
+        <div className="note-plane">
+          <svg viewBox="0 0 420 520" className="note-svg" role="img">
+            <defs>
+              <linearGradient id="noteFill" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0%" stopColor="#1a7a5c" stopOpacity="0.18" />
+                <stop offset="55%" stopColor="#0c1620" stopOpacity="0.06" />
+                <stop offset="100%" stopColor="#3d6b8a" stopOpacity="0.14" />
+              </linearGradient>
+            </defs>
+            <rect
+              x="48"
+              y="40"
+              width="280"
+              height="380"
+              rx="18"
+              fill="url(#noteFill)"
+              stroke="#0c1620"
+              strokeOpacity="0.18"
+              strokeWidth="1.5"
+            />
+            <rect
+              x="88"
+              y="78"
+              width="280"
+              height="380"
+              rx="18"
+              fill="#f4f7f9"
+              fillOpacity="0.55"
+              stroke="#0c1620"
+              strokeOpacity="0.12"
+              strokeWidth="1.5"
+            />
+            <path
+              d="M128 150h160M128 186h120M128 222h140M128 258h90"
+              stroke="#0c1620"
+              strokeOpacity="0.22"
+              strokeWidth="6"
+              strokeLinecap="round"
+            />
+            <circle cx="300" cy="340" r="28" fill="#2f9e7a" fillOpacity="0.85" />
+            <path
+              d="M288 340h24M300 328v24"
+              stroke="#f4f7f9"
+              strokeWidth="4"
+              strokeLinecap="round"
+            />
+          </svg>
+        </div>
+      </div>
+
       <header className="hero">
         <p className="brand">stk402</p>
-        <h1>Consumer pay</h1>
+        <h1>Pay from shielded notes</h1>
         <p className="lede">
-          Connect Ready or Xverse. Pay a real x402 Paid Resource from STRK20
-          notes. No viewing key leaves the wallet. Agents: open the skill URL
-          below and pay via CLI or MCP.
+          Connect Ready or Xverse. Settle a real x402 invoice — the amount stays
+          in the note.
         </p>
-      </header>
 
-      <section className="panel">
-        <h2>Agent skill</h2>
-        <p className="muted">
-          Same demo origin. Load this skill, point{" "}
-          <code>STK402_RESOURCE_URL</code> at the Paid Resource below, then{" "}
-          <code>npm run pay:resource</code> or MCP{" "}
-          <code>stk402_pay_resource</code>.
-        </p>
-        <p className="meta">
-          <span className="label">Skill</span>{" "}
-          <a href={SKILL_URL} target="_blank" rel="noreferrer">
-            {SKILL_URL}
-          </a>
-        </p>
-      </section>
-
-      <section className="panel">
-        <h2>1. Wallet</h2>
-        {!address ? (
-          <ul className="wallets">
-            {wallets.length === 0 ? (
-              <li className="muted">No Ready/Xverse detected yet.</li>
+        <div className="cta-group">
+          {!address ? (
+            wallets.length === 0 ? (
+              <p className="hint pulse">
+                Waiting for Ready or Xverse…
+              </p>
             ) : (
               wallets.map((wallet) => (
-                <li key={wallet.name}>
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() => onConnect(wallet)}
-                  >
-                    {wallet.name}
-                  </button>
-                </li>
+                <button
+                  key={wallet.name}
+                  type="button"
+                  className="btn btn-primary"
+                  disabled={busy}
+                  onClick={() => onConnect(wallet)}
+                >
+                  Connect {wallet.name}
+                </button>
               ))
-            )}
-          </ul>
-        ) : (
-          <div className="meta">
-            <p>
-              <span className="label">Address</span> {address}
-            </p>
-            <p>
-              <span className="label">Chain</span> {chainId}
-            </p>
-            <p className={strk20Ok ? "ok" : "bad"}>{strk20Note}</p>
-          </div>
-        )}
-      </section>
+            )
+          ) : (
+            <div className="session" role="status">
+              <div className="session-main">
+                <span className={`dot ${strk20Ok ? "dot-ok" : "dot-bad"}`} />
+                <div>
+                  <p className="session-addr">{shortAddress(address)}</p>
+                  <p className="session-meta">
+                    {chainLabel(chainId)} · {strk20Note}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                className="btn btn-ghost"
+                onClick={onDisconnect}
+                disabled={busy}
+              >
+                Disconnect
+              </button>
+            </div>
+          )}
+        </div>
+      </header>
 
-      <section className="panel">
-        <h2>2. Paid Resource</h2>
+      <section className="pay" aria-labelledby="pay-heading">
+        <h2 id="pay-heading">Paid Resource</h2>
+        <p className="section-lede">
+          Paste the invoice endpoint. Proof generation can take a few minutes.
+        </p>
+
         <label className="field">
-          <span>Resource URL</span>
+          <span className="field-label">Resource URL</span>
           <input
             value={resourceUrl}
             onChange={(event) => setResourceUrl(event.target.value.trim())}
             spellCheck={false}
+            autoComplete="off"
+            placeholder="https://…/tools/sha256?text=stk402"
           />
         </label>
-        <button type="button" disabled={busy || !strk20Ok} onClick={onPay}>
+
+        <button
+          type="button"
+          className="btn btn-accent"
+          disabled={!canPay}
+          onClick={onPay}
+        >
           {busy ? "Working…" : "Pay privately"}
         </button>
-        <p className="muted">
-          Proof generation can take minutes. Merchant must be pool-registered.
-          Envelope servers need the three VITE_STK402_* envelope keys (same
-          authorized client key the server pins).
-        </p>
+
+        {!address && (
+          <p className="hint">Connect a wallet to enable private pay.</p>
+        )}
+        {address && !strk20Ok && (
+          <p className="hint warn">{strk20Note}</p>
+        )}
       </section>
 
-      {(log.length > 0 || result || error) && (
-        <section className="panel">
-          <h2>3. Result</h2>
+      {showStatus && (
+        <section
+          className="status"
+          aria-live="polite"
+          aria-labelledby="status-heading"
+        >
+          <h2 id="status-heading">{result ? "Settled" : error ? "Blocked" : "Progress"}</h2>
+
           {log.length > 0 && (
-            <ol className="log">
-              {log.map((row) => (
-                <li key={row}>{row}</li>
-              ))}
+            <ol className="timeline">
+              {log.map((row, index) => {
+                const done = index < log.length - 1 || Boolean(result);
+                const active = index === log.length - 1 && busy && !result;
+                return (
+                  <li
+                    key={row.id}
+                    className={`timeline-item ${done ? "is-done" : ""} ${active ? "is-active" : ""}`}
+                  >
+                    <span className="timeline-mark" />
+                    <div>
+                      <p className="timeline-title">
+                        {STEP_COPY[row.step] || row.step}
+                      </p>
+                      {row.detail && (
+                        <p className="timeline-detail">{row.detail}</p>
+                      )}
+                    </div>
+                  </li>
+                );
+              })}
             </ol>
           )}
-          {error && <pre className="error">{error}</pre>}
-          {result && <pre className="okbox">{result}</pre>}
+
+          {error && <p className="banner banner-error">{error}</p>}
+
+          {result && (
+            <div className="settle-card">
+              <p className="settle-kicker">HTTP {result.status}</p>
+              <p className="settle-hash">
+                <span>Tx</span> {shortAddress(result.transactionHash)}
+              </p>
+              <pre className="settle-body">
+                {JSON.stringify(result.body, null, 2)}
+              </pre>
+            </div>
+          )}
         </section>
       )}
-    </main>
+
+      <footer className="agent-foot">
+        <p>
+          <strong>Agents</strong> load the skill, then pay via CLI or MCP.
+        </p>
+        <div className="agent-actions">
+          <a className="btn btn-ghost" href={SKILL_URL}>
+            Open SKILL.md
+          </a>
+          <button type="button" className="btn btn-ghost" onClick={copySkill}>
+            {copied ? "Copied" : "Copy skill URL"}
+          </button>
+        </div>
+      </footer>
+    </div>
   );
 }
