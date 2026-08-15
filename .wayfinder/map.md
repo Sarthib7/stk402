@@ -11,7 +11,7 @@ By 2026-08-31: a public dual-client stk402 product (Agent Payer via CLI/SDK/MCP/
 - Grill locks 2026-08-14: destination C; dual surfaces C; score hashes must settle stk402 invoices (3B); network order Devnet→Sepolia→Mainnet (4A); ship CLI+SDK+MCP (5); viewing key in env (6A); wallets Ready+Xverse (8B).
 - Agent demo path: skill connects the agent, then CLI or MCP pays a payable x402 endpoint through stk402. Browser path integrates SDK / Wallet API.
 - Standing prefs: real settlement only; honest privacy copy from `research/privacy-claims-what-we-can-say.md`; merchant must be pool-registered.
-- Calendar risk: full dual client in one sprint is high. Frontier order prefers mainnet URL gate + invoice score hashes before polishing MCP/skill.
+- Calendar risk: full dual client in one sprint is high. Frontier order: **browser Wallet API invoice settles for score hashes** (locked A, 2026-08-15), then always-on demo host; agent mainnet CLI waits on published URLs.
 
 ## Decisions so far
 
