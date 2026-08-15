@@ -83,7 +83,7 @@ Keep these next to any privacy sentence:
 | Viewing key to discovery | Sent under OHTTP; no relay in current constructor | Stays in wallet |
 | First `Append` | Exposed recipient on Sepolia pay | Same protocol if channel is new |
 | Envelope 402 | Code present; Sepolia run was plaintext | Same scheme if the page sends the pinned key; CORS/header exposure NOT DETERMINED |
-| Mainnet agent settle | Blocked on published prover/indexer URLs or self-host (Day 0 VERIFIED still missing those URLs) | Wallet can hit mainnet pool without those URLs (REPORTED) |
+| Mainnet agent settle | Blocked on published prover/indexer URLs (Day 0 VERIFIED still missing those URLs). Self-host is contingency only, not the score-hash plan. | Primary score-hash path (grill 2026-08-15 A): Consumer Wallet API invoice settle. Wallet can hit mainnet pool without agent prover URLs (REPORTED). |
 | Trust extras | Seller, discovery, prover, (paymaster), Cloudflare tunnel | Seller, wallet vendor, possible wallet prover, possible relayer |
 
 ## Least confident decisions
@@ -95,7 +95,7 @@ Keep these next to any privacy sentence:
 
 ## Gaps (do not invent)
 
-- Live Ready/Xverse paying an stk402 invoice
+- Live Ready/Xverse paying an stk402 invoice (Consumer React path shipped in `web/`; settle not measured)
 - Live AVNU or Ready relayer sender on Voyager for this product
 - Mainnet discovery URL and proving URL (absent from Day 0 on 2026-08-14 fetch)
 - Envelope-on live 402 (code yes, Sepolia audit no)
@@ -103,3 +103,4 @@ Keep these next to any privacy sentence:
 - Anonymity-set size; correlating shield-then-pay
 - Xverse dapp Wallet API "in progress" vs live (sources disagree by page age)
 - Wallet API sub-accounts / `shadow_account_invoke` readiness
+- Render always-on deploy (host locked; deploy on hold)
