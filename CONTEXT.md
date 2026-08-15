@@ -52,3 +52,9 @@ _Avoid_: seller as the only term (seller may also mean the HTTP operator)
 - "private payment" — resolved for public copy: mean note-to-note amount confidentiality for observers without a viewing key, not unlinkability or hidden L2 sender unless measured.
 - "user" — resolved: say **Agent Payer** or **Consumer**.
 - "seller" vs **Merchant** — HTTP operator may equal Merchant; prefer **Merchant** for `payTo`.
+
+## Standing decisions (2026-08-15)
+
+- **Score Hash** production path while Agent mainnet prover/indexer URLs are missing: **Consumer** Ready/Xverse Wallet API invoice settle (not self-host prover as the plan).
+- Always-on **demo_url** + Paid Resource host: **Render**. Deploy on hold until operators unblock.
+- Glossary and map: [`.wayfinder/map.md`](.wayfinder/map.md).

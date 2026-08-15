@@ -7,6 +7,8 @@ Works as:
 - **Web app** — open in a desktop browser, connect an extension wallet
 - **Wallet dApp** — open the URL inside Ready / Xverse’s in-app browser (responsive, safe-area, installable manifest)
 
+This Consumer path is the **primary route for grill 3B score hashes** while Agent Payer mainnet discovery/proving URLs stay unpublished. Each scored hash must settle a stk402 Invoice (not shield-only). See [`.wayfinder/tickets/score-hashes-via-browser.md`](../.wayfinder/tickets/score-hashes-via-browser.md).
+
 ## Run
 
 ```sh
@@ -55,7 +57,18 @@ Client public key must match `STK402_AUTHORIZED_CLIENT_ENVELOPE_PUBLIC_KEY` on t
 
 - `demo_url` = this Consumer pay page
 - Same origin `/SKILL.md` (`public/SKILL.md`) for agent CLI/MCP pay
-- Paid Resource = separate always-on HTTPS URL (tunnel first OK)
+- Paid Resource = separate always-on HTTPS URL (may be same Render project, different service or path)
+- **Host:** Render for always-on Consumer + Paid Resource ([ticket](../.wayfinder/tickets/host-on-render.md))
+- **Deploy:** on hold until operators say go. Tunnel OK for first public proof / wallet tests
+
+## Status
+
+- Connect + STRK20 capability probe: shipped
+- `exact-private` transfer + Receipt sign + settle: shipped in code
+- `exact-private-envelope-v1` open + seal in browser: shipped (`../src/shared/envelope-portable.ts`)
+- Agent skill file on demo origin: shipped (`public/SKILL.md`)
+- Live browser invoice settle (Sepolia or Mainnet): not measured yet
+- Render deploy: on hold
 
 ## Stack
 

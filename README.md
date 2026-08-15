@@ -4,7 +4,7 @@ Amount-confidential STRK20 payments for x402 agents on Starknet.
 
 STK402 adds an encrypted x402 payment scheme for STRK20. The agent and server exchange encrypted payment terms and receipt metadata. The server verifies the signed receipt, checks the indexed payment, prevents replay, and returns the paid resource.
 
-> Hackathon status: one real Sepolia payment completed. Mainnet settlement has not run.
+> Hackathon status: one real Sepolia Agent Payer settle completed. Consumer React dApp shipped in-repo. Mainnet invoice settles and `strk20.json` score hashes not run yet. Always-on host locked to **Render** (deploy on hold).
 
 ## Current status
 
@@ -16,9 +16,22 @@ STK402 adds an encrypted x402 payment scheme for STRK20. The agent and server ex
 | Later paymaster transfer | Verified on Devnet | A pre-opened channel lets the paymaster submit without payer or recipient in payment calldata. |
 | Sepolia services | Preflight verified | RPC, pool, discovery, and prover version checks pass. |
 | Real Sepolia proof and payment | Verified | See [`EVIDENCE.md`](EVIDENCE.md). |
-| Mainnet payment | Not run | Discovery trust and deployment checks remain open. |
+| Consumer web (Ready/Xverse) | In-repo React SPA | `web/` Wallet API pay path + envelope open; local build verified. Live invoice settle not measured yet. |
+| Mainnet payment | Not run | Agent CLI blocked on hosted discovery/proving URLs. Score hashes target **browser** Wallet API settles. |
+| Always-on demo host | Locked, not deployed | **Render** for Consumer page + Paid Resource. Deploy on hold until operators say go. Tunnel OK for interim tests. |
 
 VERIFIED: The local evidence comes from `npm test` and `npm run test:devnet`. Devnet uses test proof facts. It does not generate a real STARK proof. The separate Sepolia run used the hosted proving service.
+
+## Dual-client plan (locked)
+
+REPORTED (wayfinder grill 2026-08-15):
+
+- **Score hashes (grill 3B):** primary path is Consumer Ready/Xverse Wallet API invoice settles that unlock a Paid Resource. Shield-only txs do not count. Do not plan self-host Stwo as the hash strategy.
+- **Agent mainnet CLI:** still needs published mainnet discovery + proving URLs (or a later contingency Task). Sepolia Agent Payer evidence stays the honest narrative for that rail until then.
+- **Hosting:** always-on Consumer (`demo_url`) + Paid Resource + same-origin `/SKILL.md` on **Render**. Deployment is on hold. See [`.wayfinder/tickets/host-on-render.md`](.wayfinder/tickets/host-on-render.md).
+- **Demo shape:** `demo_url` = Consumer pay page; agents load `{demo_origin}/SKILL.md` then pay via CLI or MCP against the Paid Resource.
+
+Map: [`.wayfinder/map.md`](.wayfinder/map.md).
 
 ## Privacy scope
 
@@ -165,19 +178,22 @@ Tools: `stk402_check_network`, `stk402_fund_payer`, `stk402_pay_resource`.
 
 ### Consumer web (Wallet API)
 
+React + Vite SPA under `web/` (Ready / Xverse extension or in-app browser). This is the **primary path for mainnet score hashes** while Agent Payer mainnet proving/indexer URLs stay unpublished.
+
 ```sh
 npm run web:dev
 ```
 
-Connect Ready or Xverse, paste a Paid Resource URL, pay from shielded notes. Envelope challenges need the three `VITE_STK402_*` envelope keys (same authorized client key as the server). Agents use `{demo_origin}/SKILL.md` then CLI/`mcp:serve`. See `web/README.md`.
+Connect Ready or Xverse, paste a Paid Resource URL, pay from shielded notes. Envelope challenges need the three `VITE_STK402_*` envelope keys (same authorized client key as the server). Agents use `{demo_origin}/SKILL.md` then CLI/`mcp:serve`. See [`web/README.md`](web/README.md).
 
-Mainnet agent settle still needs hosted proving and discovery URLs. Check status without guessing endpoints:
+Always-on host is **Render** (Consumer page + Paid Resource). Deploy is on hold; use a tunnel for first public proofs. Do not invent mainnet prover/indexer URLs for the Agent Payer — check status without guessing:
 
 ```sh
 cp .env.mainnet.example .env.mainnet
 npm run check:mainnet
 ```
 
+INFERRED: Render must give the Paid Resource a persistent disk for SQLite replay. Ephemeral filesystem loses ledger state after restart.
 ## Safety model
 
 ### Payment checks
@@ -209,8 +225,10 @@ INFERRED: SQLite protects replay only when its path uses persistent storage. An 
 | Path | Purpose |
 | --- | --- |
 | [`src/private402/`](src/private402/) | x402 scheme, payer, funding, settlement, storage, and paid tool |
+| [`web/`](web/) | Consumer React dApp (Ready/Xverse Wallet API) |
 | [`test/devnet/`](test/devnet/) | Real local Devnet funding and private transfer flows |
 | [`deploy/`](deploy/) | Self-hosted STRK20 discovery service setup |
+| [`.wayfinder/`](.wayfinder/) | Dual-client destination map and decision tickets |
 | [`vendor/starknet-privacy/`](vendor/starknet-privacy/) | Pinned STRK20 SDK and contracts |
 | [`strk20.json`](strk20.json) | Hackathon transaction, contract, and demo metadata |
 
@@ -224,4 +242,4 @@ npm run test:devnet
 
 VERIFIED on 2026-08-14: `npm test` passed 99 tests. `npm run test:devnet` passed 3 tests. The Devnet suite covered private funding, direct private transfer, paymaster submission, address-absence checks, indexer discovery, signed receipt verification, settlement, and retry behavior.
 
-Blind spot: the paymaster test uses a local substitute and test proof facts. These passing tests do not prove live paymaster support, a real STARK proof, the encrypted scheme on Sepolia, or Mainnet settlement.
+Blind spot: the paymaster test uses a local substitute and test proof facts. These passing tests do not prove live paymaster support, a real STARK proof, the encrypted scheme on Sepolia, browser Wallet API invoice settle, or Mainnet settlement.
