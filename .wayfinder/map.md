@@ -48,7 +48,7 @@ By 2026-08-31: a public dual-client stk402 product (Agent Payer via CLI/SDK/MCP/
 ## Frontier (local index; open tickets live under `tickets/`)
 
 - **Primary for score hashes:** live Consumer Wallet API invoice settle (Ready/Xverse) → three mainnet invoice txs in `strk20.json` (grill 2026-08-15: path **A**, no self-host prover push)
-- Host always-on Consumer page + Paid Resource (tunnel first OK; Railway/Fly before video)
+- Host always-on Consumer page + Paid Resource on **Render** — **deploy on hold** until user says go ([ticket](tickets/host-on-render.md)); tunnel OK meanwhile
 - Prove browser Receipt verify on Sepolia with Ready before relying on it for mainnet hashes
 - Optional: root-level skill install notes once `demo_url` is live
 
@@ -65,9 +65,10 @@ Blocked (agent CLI path only):
 - [Browser envelope open for encrypted 402 terms](tickets/browser-envelope-open.md) — portable `@noble` open/seal; Vite env pins authorized client key.
 - [Choose public demo URL shape](tickets/choose-public-demo-url.md) — `demo_url` = Consumer pay page; same origin `/SKILL.md` for agent CLI/MCP pay against the Paid Resource.
 - [Score hashes via browser Wallet API](tickets/score-hashes-via-browser.md) — Aug 20 URL miss → push Consumer settles for 3B hashes; no self-host prover as the plan.
+- [Host on Render (deploy on hold)](tickets/host-on-render.md) — Render locked; wait for user go-ahead before deploy.
 
 ## Least confident decisions
 
 1. ~~Destination C + score hashes while mainnet URLs missing~~ — **resolved 2026-08-15: path A** (browser Wallet API for hashes; do not open self-host prover as the plan). Residual risk: browser Receipt must verify on-server.
 2. Whether Wallet API browser settle can produce a stk402-verifiable Receipt without Node `signMessage`.
-3. Hosting pick (Railway vs Fly vs other) for always-on page + Paid Resource before video.
+3. ~~Hosting pick~~ — **resolved 2026-08-15: Render**; deploy on hold until user unblocks.
