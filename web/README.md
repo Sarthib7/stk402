@@ -1,6 +1,11 @@
-# stk402 consumer web
+# stk402 consumer web (React dApp)
 
-Ready / Xverse Wallet API client for paying a stk402 Paid Resource.
+React + Vite SPA for Ready / Xverse Wallet API payments against a stk402 Paid Resource.
+
+Works as:
+
+- **Web app** — open in a desktop browser, connect an extension wallet
+- **Wallet dApp** — open the URL inside Ready / Xverse’s in-app browser (responsive, safe-area, installable manifest)
 
 ## Run
 
@@ -10,7 +15,29 @@ npm install
 npm run dev
 ```
 
-Env (optional `.env`):
+From the repo root: `npm run web:dev`
+
+Build / preview:
+
+```sh
+npm run build
+npm run preview
+```
+
+## App shape
+
+| Path | Role |
+| --- | --- |
+| `src/main.tsx` | React root + `BrowserRouter` |
+| `src/App.tsx` | Routes (`/`, `/pay`) |
+| `src/pages/PayPage.tsx` | Consumer pay screen |
+| `src/components/` | Atmosphere, wallet, pay form, status, agent footer |
+| `src/hooks/` | `useWalletSession`, `usePayFlow` |
+| `public/manifest.webmanifest` | Installable web app metadata |
+
+## Env
+
+Optional `.env`:
 
 ```sh
 VITE_STK402_RESOURCE_URL=https://your.host/tools/sha256?text=stk402
@@ -30,15 +57,10 @@ Client public key must match `STK402_AUTHORIZED_CLIENT_ENVELOPE_PUBLIC_KEY` on t
 - Same origin `/SKILL.md` (`public/SKILL.md`) for agent CLI/MCP pay
 - Paid Resource = separate always-on HTTPS URL (tunnel first OK)
 
-## Status
-
-- Connect + STRK20 capability probe: shipped
-- `exact-private` transfer + Receipt sign + settle: shipped
-- `exact-private-envelope-v1` open + seal in browser: shipped (`../src/shared/envelope-portable.ts`)
-- Agent skill file on demo origin: shipped
-
 ## Stack
 
+- React 19 + React Router 7
+- Vite 8 (`@vitejs/plugin-react`)
 - `starknet@10.7` (`WalletAccountV6`)
 - get-starknet discovery v6
 - Shared Receipt typed data + portable envelope from `../src/shared/`

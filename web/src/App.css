@@ -16,6 +16,11 @@
   --font-display: "Syne", "Avenir Next", sans-serif;
   --font-body: "Figtree", "Segoe UI", sans-serif;
   --shadow-soft: 0 18px 50px rgba(12, 22, 32, 0.08);
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --touch: 2.75rem;
   font-family: var(--font-body);
   color: var(--ink);
   background: var(--paper);
@@ -23,19 +28,28 @@
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
 }
 
-* {
+*,
+*::before,
+*::after {
   box-sizing: border-box;
+}
+
+html {
+  height: 100%;
 }
 
 body {
   margin: 0;
-  min-height: 100vh;
+  min-height: 100%;
+  min-height: 100dvh;
   background:
     radial-gradient(120% 80% at 85% -10%, rgba(61, 107, 138, 0.18), transparent 55%),
     radial-gradient(90% 60% at -15% 20%, rgba(26, 122, 92, 0.14), transparent 50%),
     linear-gradient(165deg, #eef3f6 0%, #f7f9fa 42%, #e8eef2 100%);
+  background-attachment: fixed;
 }
 
 button,
@@ -47,16 +61,21 @@ a {
 .shell {
   position: relative;
   isolation: isolate;
-  max-width: 44rem;
+  width: min(100%, 44rem);
   margin: 0 auto;
-  padding: 2.25rem 1.25rem 3.5rem;
+  padding:
+    calc(1.5rem + var(--safe-top))
+    calc(1rem + var(--safe-right))
+    calc(2.5rem + var(--safe-bottom))
+    calc(1rem + var(--safe-left));
   min-height: 100vh;
+  min-height: 100dvh;
 }
 
 .atmosphere {
   position: absolute;
   inset: 0 -1.5rem auto;
-  height: min(92vh, 720px);
+  height: min(92dvh, 720px);
   pointer-events: none;
   z-index: -1;
   overflow: hidden;
@@ -71,16 +90,16 @@ a {
 }
 
 .mist-a {
-  width: 380px;
-  height: 380px;
+  width: min(58vw, 380px);
+  height: min(58vw, 380px);
   top: 4%;
   right: -20px;
   background: radial-gradient(circle, rgba(47, 158, 122, 0.42), transparent 70%);
 }
 
 .mist-b {
-  width: 320px;
-  height: 320px;
+  width: min(50vw, 320px);
+  height: min(50vw, 320px);
   top: 42%;
   left: -40px;
   background: radial-gradient(circle, rgba(61, 107, 138, 0.34), transparent 70%);
@@ -120,8 +139,8 @@ a {
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
-  min-height: min(72vh, 560px);
-  padding: 1.25rem 0 2.25rem;
+  min-height: min(68dvh, 560px);
+  padding: 1rem 0 2rem;
   animation: rise 0.85s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
@@ -129,7 +148,7 @@ a {
   margin: 0 0 1rem;
   font-family: var(--font-display);
   font-weight: 800;
-  font-size: clamp(3.4rem, 12vw, 5.5rem);
+  font-size: clamp(2.75rem, 14vw, 5.5rem);
   line-height: 0.9;
   letter-spacing: -0.04em;
   color: var(--ink);
@@ -140,38 +159,60 @@ a {
   max-width: 14ch;
   font-family: var(--font-display);
   font-weight: 700;
-  font-size: clamp(1.55rem, 4.5vw, 2.15rem);
+  font-size: clamp(1.4rem, 5vw, 2.15rem);
   line-height: 1.12;
   letter-spacing: -0.02em;
 }
 
 .lede {
-  margin: 0 0 1.75rem;
+  margin: 0 0 1.5rem;
   max-width: 28rem;
   color: var(--ink-soft);
-  font-size: 1.05rem;
+  font-size: clamp(0.98rem, 2.8vw, 1.05rem);
 }
 
 .cta-group {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
+  align-items: stretch;
   gap: 0.65rem;
-  align-items: center;
+  width: min(100%, 28rem);
   min-height: 3rem;
+}
+
+.wallet-actions {
+  display: grid;
+  gap: 0.55rem;
+  width: 100%;
+}
+
+.wallet-empty {
+  display: grid;
+  gap: 0.35rem;
 }
 
 .btn {
   appearance: none;
   border: 1px solid transparent;
   border-radius: 999px;
+  min-height: var(--touch);
   padding: 0.72rem 1.15rem;
   cursor: pointer;
+  touch-action: manipulation;
   transition:
     transform 160ms ease,
     background 160ms ease,
     border-color 160ms ease,
     box-shadow 160ms ease,
     opacity 160ms ease;
+}
+
+.btn-block {
+  width: 100%;
+  justify-content: center;
+  display: inline-flex;
+  align-items: center;
+  text-align: center;
 }
 
 .btn:hover:not(:disabled) {
@@ -225,7 +266,6 @@ a {
   align-items: center;
   justify-content: space-between;
   width: 100%;
-  max-width: 28rem;
   padding: 0.85rem 1rem;
   background: var(--paper-raised);
   border: 1px solid var(--line);
@@ -240,6 +280,7 @@ a {
   gap: 0.7rem;
   align-items: center;
   min-width: 0;
+  flex: 1 1 12rem;
 }
 
 .session-addr {
@@ -312,11 +353,13 @@ a {
 
 .field input {
   width: 100%;
+  min-height: var(--touch);
   padding: 0.8rem 0.9rem;
   border: 1px solid var(--line);
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.8);
   color: var(--ink);
+  font-size: 1rem;
   outline: none;
   transition:
     border-color 160ms ease,
@@ -442,6 +485,7 @@ a {
   word-break: break-word;
   font-size: 0.82rem;
   line-height: 1.4;
+  overflow-x: auto;
 }
 
 .agent-foot {
@@ -464,8 +508,8 @@ a {
 }
 
 .agent-actions {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr));
   gap: 0.55rem;
 }
 
@@ -473,6 +517,7 @@ a {
   text-decoration: none;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
 }
 
 @keyframes rise {
@@ -526,32 +571,54 @@ a {
   }
 }
 
-@media (max-width: 640px) {
+@media (min-width: 720px) {
   .shell {
-    padding: 1.5rem 1rem 3rem;
+    padding:
+      calc(2.25rem + var(--safe-top))
+      calc(1.25rem + var(--safe-right))
+      calc(3.5rem + var(--safe-bottom))
+      calc(1.25rem + var(--safe-left));
   }
 
+  .cta-group {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  .wallet-actions {
+    grid-auto-flow: column;
+    grid-auto-columns: max-content;
+  }
+
+  .btn-block {
+    width: auto;
+  }
+
+  .agent-actions {
+    display: flex;
+    flex-wrap: wrap;
+  }
+}
+
+@media (max-width: 719px) {
   .hero {
     min-height: auto;
     justify-content: flex-start;
-    padding-top: 0.5rem;
+    padding-top: 0.35rem;
   }
 
   .note-plane {
-    opacity: 0.35;
+    opacity: 0.28;
   }
 
   .note-svg {
-    width: min(70vw, 240px);
-    margin-right: -1.5rem;
+    width: min(62vw, 220px);
+    margin-right: -1.25rem;
   }
 
-  .brand {
-    font-size: clamp(2.8rem, 16vw, 3.8rem);
-  }
-
-  .session {
-    max-width: none;
+  .session .btn-ghost {
+    width: 100%;
   }
 }
 
