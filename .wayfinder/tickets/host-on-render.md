@@ -20,13 +20,13 @@ REPORTED: User locked hosting to Render. Deployment was on hold until they said 
 
 ## Amendment (2026-08-17)
 
-REPORTED: User asked to fix the failed Render Static Site (`/static/srv-…`).
+REPORTED: Failed Static Site at https://stk402.onrender.com (`static-no-asset`).
 
-Cause: root `npm install` / `npm run build` against this repo. Root install requires `file:vendor/starknet-privacy` (submodule). There was no Consumer-only build path.
+Cause: Render runs root `npm install`. `file:vendor/starknet-privacy/*` needs the git submodule (not cloned). Vite writes `web/dist`; Render often publishes `dist`, so even a web-only build looked empty.
 
 Fix:
 
-- [`render.yaml`](../../render.yaml) Static Site `stk402-consumer`: install/build only `web/`
-- [`deploy/render.md`](../../deploy/render.md) dashboard settings for the existing service
-- Root `postinstall` skips vendor when the submodule is missing
-- Paid Resource stays a **Node Web Service** (operator secrets + disk). Not this static deploy.
+- `vendor-shims/` so root npm install works without the submodule
+- `npm run build` copies the SPA to `dist/` and `build/`
+- Skip vendor compile on Render unless `STK402_BUILD_VENDOR=1`
+- Paid Resource stays a Node Web Service (operator secrets + disk)

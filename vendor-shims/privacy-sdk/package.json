@@ -1,0 +1,11 @@
+{
+  "name": "@starkware-libs/starknet-privacy-sdk",
+  "version": "0.14.3-rc.5",
+  "private": true,
+  "type": "module",
+  "license": "ISC",
+  "description": "Install shim so npm can resolve file: without the git submodule. Runtime still loads vendor/starknet-privacy/sdk when that tree exists.",
+  "exports": {
+    ".": "./index.js"
+  }
+}
