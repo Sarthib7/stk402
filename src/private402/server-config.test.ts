@@ -37,6 +37,7 @@ test("loads a Sepolia paid server with L2 finality", () => {
   assert.equal(config.requiredFinality, "l2");
   assert.equal(config.publicOrigin.toString(), "https://seller.example/");
   assert.equal(config.port, 3402);
+  assert.equal(config.host, "127.0.0.1");
   assert.equal(config.amount, 50n);
   assert.equal(config.invoiceTimeoutSeconds, 900);
 });
@@ -82,6 +83,24 @@ test("loads and validates a custom invoice timeout", () => {
       }),
     /positive safe integer/,
   );
+});
+
+test("binds Render PORT on all interfaces unless STK402_HOST is set", () => {
+  const hosted = loadPaidServerConfig({
+    ...environment(),
+    PORT: "10000",
+    STK402_PORT: "3402",
+  });
+  assert.equal(hosted.port, 10000);
+  assert.equal(hosted.host, "0.0.0.0");
+
+  const pinned = loadPaidServerConfig({
+    ...environment(),
+    PORT: "10000",
+    STK402_HOST: "127.0.0.1",
+  });
+  assert.equal(pinned.port, 10000);
+  assert.equal(pinned.host, "127.0.0.1");
 });
 
 test("rejects an RPC for another Starknet network", () => {

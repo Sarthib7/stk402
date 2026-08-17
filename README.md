@@ -4,7 +4,7 @@ Amount-confidential STRK20 payments for x402 agents on Starknet.
 
 STK402 adds an encrypted x402 payment scheme for STRK20. The agent and server exchange encrypted payment terms and receipt metadata. The server verifies the signed receipt, checks the indexed payment, prevents replay, and returns the paid resource.
 
-> Hackathon status: one real Sepolia Agent Payer settle completed. Consumer React dApp shipped in-repo. Mainnet invoice settles and `strk20.json` score hashes not run yet. Always-on host locked to **Render** (deploy on hold).
+> Hackathon status: one real Sepolia Agent Payer settle completed. Consumer React dApp shipped in-repo. Mainnet invoice settles and `strk20.json` score hashes not run yet. Always-on host is **Render** (Consumer static build fixed; Paid Resource secrets still operator-owned).
 
 ## Current status
 
@@ -18,7 +18,7 @@ STK402 adds an encrypted x402 payment scheme for STRK20. The agent and server ex
 | Real Sepolia proof and payment | Verified | See [`EVIDENCE.md`](EVIDENCE.md). |
 | Consumer web (Ready/Xverse) | In-repo React SPA | `web/` Wallet API pay path + envelope open; local build verified. Live invoice settle not measured yet. |
 | Mainnet payment | Not run | Agent CLI blocked on hosted discovery/proving URLs. Score hashes target **browser** Wallet API settles. |
-| Always-on demo host | Locked, not deployed | **Render** for Consumer page + Paid Resource. Deploy on hold until operators say go. Tunnel OK for interim tests. |
+| Always-on demo host | Consumer build ready | Render Static Site: `npm --prefix web` → `web/dist`. See [`deploy/render.md`](deploy/render.md). Paid Resource Web Service still needs secrets + disk. |
 
 VERIFIED: The local evidence comes from `npm test` and `npm run test:devnet`. Devnet uses test proof facts. It does not generate a real STARK proof. The separate Sepolia run used the hosted proving service.
 
@@ -28,7 +28,7 @@ REPORTED (wayfinder grill 2026-08-15):
 
 - **Score hashes (grill 3B):** primary path is Consumer Ready/Xverse Wallet API invoice settles that unlock a Paid Resource. Shield-only txs do not count. Do not plan self-host Stwo as the hash strategy.
 - **Agent mainnet CLI:** still needs published mainnet discovery + proving URLs (or a later contingency Task). Sepolia Agent Payer evidence stays the honest narrative for that rail until then.
-- **Hosting:** always-on Consumer (`demo_url`) + Paid Resource + same-origin `/SKILL.md` on **Render**. Deployment is on hold. See [`.wayfinder/tickets/host-on-render.md`](.wayfinder/tickets/host-on-render.md).
+- **Hosting:** always-on Consumer (`demo_url`) + Paid Resource + same-origin `/SKILL.md` on **Render**. Consumer Static Site settings: [`deploy/render.md`](deploy/render.md). Paid Resource still needs a Node Web Service + secrets.
 - **Demo shape:** `demo_url` = Consumer pay page; agents load `{demo_origin}/SKILL.md` then pay via CLI or MCP against the Paid Resource.
 
 Map: [`.wayfinder/map.md`](.wayfinder/map.md).
@@ -186,7 +186,7 @@ npm run web:dev
 
 Connect Ready or Xverse, paste a Paid Resource URL, pay from shielded notes. Envelope challenges need the three `VITE_STK402_*` envelope keys (same authorized client key as the server). Agents use `{demo_origin}/SKILL.md` then CLI/`mcp:serve`. See [`web/README.md`](web/README.md).
 
-Always-on host is **Render** (Consumer page + Paid Resource). Deploy is on hold; use a tunnel for first public proofs. Do not invent mainnet prover/indexer URLs for the Agent Payer — check status without guessing:
+Always-on host is **Render**. Point the Static Site at `web/` (not root `npm install`). See [`deploy/render.md`](deploy/render.md). Do not invent mainnet prover/indexer URLs for the Agent Payer — check status without guessing:
 
 ```sh
 cp .env.mainnet.example .env.mainnet
@@ -227,7 +227,7 @@ INFERRED: SQLite protects replay only when its path uses persistent storage. An 
 | [`src/private402/`](src/private402/) | x402 scheme, payer, funding, settlement, storage, and paid tool |
 | [`web/`](web/) | Consumer React dApp (Ready/Xverse Wallet API) |
 | [`test/devnet/`](test/devnet/) | Real local Devnet funding and private transfer flows |
-| [`deploy/`](deploy/) | Self-hosted STRK20 discovery service setup |
+| [`deploy/`](deploy/) | Self-hosted STRK20 discovery + Render Consumer/Paid Resource notes |
 | [`.wayfinder/`](.wayfinder/) | Dual-client destination map and decision tickets |
 | [`vendor/starknet-privacy/`](vendor/starknet-privacy/) | Pinned STRK20 SDK and contracts |
 | [`strk20.json`](strk20.json) | Hackathon transaction, contract, and demo metadata |

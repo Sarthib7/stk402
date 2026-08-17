@@ -57,9 +57,9 @@ Client public key must match `STK402_AUTHORIZED_CLIENT_ENVELOPE_PUBLIC_KEY` on t
 
 - `demo_url` = this Consumer pay page
 - Same origin `/SKILL.md` (`public/SKILL.md`) for agent CLI/MCP pay
-- Paid Resource = separate always-on HTTPS URL (may be same Render project, different service or path)
-- **Host:** Render for always-on Consumer + Paid Resource ([ticket](../.wayfinder/tickets/host-on-render.md))
-- **Deploy:** on hold until operators say go. Tunnel OK for first public proof / wallet tests
+- **Host:** Render Static Site for this app ([`deploy/render.md`](../deploy/render.md), [`render.yaml`](../render.yaml))
+- **Paid Resource:** separate Node Web Service (not this static build)
+- Tunnel OK until the Static Site settings above are applied
 
 ## Status
 
@@ -68,7 +68,8 @@ Client public key must match `STK402_AUTHORIZED_CLIENT_ENVELOPE_PUBLIC_KEY` on t
 - `exact-private-envelope-v1` open + seal in browser: shipped (`../src/shared/envelope-portable.ts`)
 - Agent skill file on demo origin: shipped (`public/SKILL.md`)
 - Live browser invoice settle (Sepolia or Mainnet): not measured yet
-- Render deploy: on hold
+- Render Consumer static build: `npm --prefix web ci && npm --prefix web run build` → `web/dist`
+- Render Paid Resource: Web Service + secrets, not this SPA
 
 ## Stack
 

@@ -56,5 +56,5 @@ _Avoid_: seller as the only term (seller may also mean the HTTP operator)
 ## Standing decisions (2026-08-15)
 
 - **Score Hash** production path while Agent mainnet prover/indexer URLs are missing: **Consumer** Ready/Xverse Wallet API invoice settle (not self-host prover as the plan).
-- Always-on **demo_url** + Paid Resource host: **Render**. Deploy on hold until operators unblock.
+- Always-on **demo_url** + Paid Resource host: **Render**. Consumer is a Static Site (`web/dist`). Paid Resource is a Node Web Service with secrets. See [`deploy/render.md`](deploy/render.md).
 - Glossary and map: [`.wayfinder/map.md`](.wayfinder/map.md).

@@ -15,4 +15,4 @@ Hosting shape, out-of-scope list, and Aug 20 URL contingency (grill 12–14, age
 
 ## Amendment (2026-08-15)
 
-Host pick locked to **Render**. See [Host on Render (deploy on hold)](host-on-render.md). Deploy waits on user go-ahead.
+Host pick locked to **Render**. See [Host on Render (deploy on hold)](host-on-render.md). Consumer Static Site build path shipped 2026-08-17 (`deploy/render.md`). Paid Resource remains a Node Web Service with operator secrets.

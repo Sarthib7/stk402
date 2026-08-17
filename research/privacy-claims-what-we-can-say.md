@@ -103,4 +103,5 @@ Keep these next to any privacy sentence:
 - Anonymity-set size; correlating shield-then-pay
 - Xverse dapp Wallet API "in progress" vs live (sources disagree by page age)
 - Wallet API sub-accounts / `shadow_account_invoke` readiness
-- Render always-on deploy (host locked; deploy on hold)
+- Render always-on Consumer Static Site (build path shipped; dashboard Install/Build/Publish must use `web/`)
+- Render Paid Resource Web Service (secrets + disk; not the static site)
