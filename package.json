@@ -25,8 +25,9 @@
     "mcp:serve": "node --env-file-if-exists=.env.payer --import tsx src/mcp/server.ts",
     "web:dev": "npm --prefix web run dev",
     "web:build": "npm --prefix web run build",
-    "postinstall": "npm run build:vendor",
-    "serve:paid": "node --env-file=.env.server --import tsx src/private402/serve.ts",
+    "build": "npm --prefix web ci && npm --prefix web run build",
+    "postinstall": "node scripts/maybe-build-vendor.mjs",
+    "serve:paid": "node --env-file-if-exists=.env.server --import tsx src/private402/serve.ts",
     "test": "node --import tsx --test \"src/**/*.test.ts\"",
     "test:devnet": "npm run build:contracts:devnet && npm run build:vendor && node --import tsx --test --test-concurrency=1 \"test/devnet/*.test.ts\"",
     "typecheck": "tsc --noEmit"

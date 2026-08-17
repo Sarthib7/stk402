@@ -81,6 +81,22 @@ export function assertExpectedChainId(actual: string, expected: string): void {
   }
 }
 
+/** Render/Heroku set PORT. Bind all interfaces unless STK402_HOST is set. */
+export function listenHost(environment: NodeJS.ProcessEnv = process.env): string {
+  const explicit = environment.STK402_HOST?.trim();
+  if (explicit) return explicit;
+  if (environment.PORT?.trim()) return "0.0.0.0";
+  return "127.0.0.1";
+}
+
+/** Prefer platform PORT when present so Render health checks reach the process. */
+export function listenPort(environment: NodeJS.ProcessEnv = process.env): number {
+  if (environment.PORT?.trim()) {
+    return positiveSafeInteger(environment, "PORT", 3402);
+  }
+  return positiveSafeInteger(environment, "STK402_PORT", 3402);
+}
+
 export function loadPaidServerConfig(
   environment: NodeJS.ProcessEnv = process.env,
 ): PaidServerConfig {
@@ -121,8 +137,8 @@ export function loadPaidServerConfig(
   publicOrigin.search = "";
   publicOrigin.hash = "";
 
-  const port = positiveSafeInteger(environment, "STK402_PORT", 3402);
-  if (port > 65_535) throw new Error("STK402_PORT must be at most 65535");
+  const port = listenPort(environment);
+  if (port > 65_535) throw new Error("listen port must be at most 65535");
   const envelopePrivateKey = parseEnvelopePrivateKey(
     required(environment, "STK402_ENVELOPE_PRIVATE_KEY"),
   );
@@ -157,7 +173,7 @@ export function loadPaidServerConfig(
     amount,
     ledgerPath,
     publicOrigin,
-    host: environment.STK402_HOST?.trim() || "127.0.0.1",
+    host: listenHost(environment),
     port,
     requiredFinality: "l2",
     maxOutstandingInvoices: positiveSafeInteger(

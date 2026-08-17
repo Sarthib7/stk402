@@ -1,0 +1,27 @@
+# Consumer SPA (fixes the failed Render Static Site).
+# Existing dashboard service: set Install / Build / Publish to these values
+# (or apply this blueprint). Do not use root `npm install` — file: vendor
+# packages require the git submodule and are not needed for the pay page.
+#
+# Paid Resource is a Node Web Service, not static. Add it separately with
+# secrets + persistent disk. See deploy/render.md.
+
+previewsEnabled: false
+
+services:
+  - type: web
+    name: stk402-consumer
+    runtime: static
+    rootDir: .
+    installCommand: npm --prefix web ci
+    buildCommand: npm --prefix web run build
+    staticPublishPath: web/dist
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: NPM_CONFIG_PRODUCTION
+        value: "false"
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html

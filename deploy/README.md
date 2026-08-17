@@ -1,5 +1,7 @@
 # Self-hosted STRK20 discovery
 
+Public Consumer + Paid Resource hosting is on Render. See [render.md](render.md).
+
 VERIFIED (`vendor/starknet-privacy/deploy/discovery-service/Dockerfile`): This repository pins the discovery service source through the `vendor/starknet-privacy` submodule.
 
 Create local configuration:

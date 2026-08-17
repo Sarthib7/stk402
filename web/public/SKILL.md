@@ -46,6 +46,8 @@ Tools:
 
 Humans use Ready or Xverse on the Consumer pay page (`demo_url`). That path uses the STRK20 Wallet API. Do not ask them for a viewing key.
 
+Always-on hosting is **Render**: Consumer Static Site (`demo_url`) plus a separate Paid Resource Web Service. Build the pay page with `npm --prefix web`, not root `npm install`. Until that URL is live, use the URL the operator gives (tunnel OK). Score hashes for the hackathon target this Consumer invoice path when Agent mainnet prover/indexer URLs are unavailable.
+
 ## Privacy copy (keep honest)
 
 Amount is hidden on the pool receipt from observers without a viewing key. Do not claim unlinkable or fully private. Direct L2 sender stays visible unless a paymaster/relayer actually submits.
