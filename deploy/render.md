@@ -18,6 +18,8 @@ Default Static Site commands:
 | **Publish Directory** | `dist` (also copied to `build` and `web/dist`) |
 | **NODE_VERSION** | `22` |
 
+`package.json` engines is `>=22` so Render Node 22 matches `.nvmrc`. `engine-strict=false` in `.npmrc` so a 22 vs 24 mismatch cannot fail install.
+
 Leave these at Render defaults if they already match. Then **Manual Deploy**.
 
 Or apply [`render.yaml`](../render.yaml) (service name `stk402-consumer`).
