@@ -4,17 +4,21 @@ Always-on host for the Consumer pay page and Paid Resource.
 
 ## Consumer (Static Site)
 
-This is the service that failed as `/static/srv-…`. Root `npm install` tries to build `file:vendor/starknet-privacy/*` and there is no root `build` script.
+Root `npm install` used to fail because `file:vendor/starknet-privacy/*` needs the git submodule. Default Publish Directory `dist` was also empty because Vite writes `web/dist`.
 
-In the existing Static Site settings:
+Consumer install uses `vendor-shims/` so npm does not need the submodule. `npm run build` copies the SPA to `dist/` and `build/`.
+
+Default Static Site commands:
 
 | Field | Value |
 | --- | --- |
 | **Root Directory** | empty / repo root |
-| **Install Command** | `npm --prefix web ci` |
-| **Build Command** | `npm --prefix web run build` |
-| **Publish Directory** | `web/dist` |
+| **Install Command** | `npm install` or `npm ci --include=dev` |
+| **Build Command** | `npm run build` |
+| **Publish Directory** | `dist` (also copied to `build` and `web/dist`) |
 | **NODE_VERSION** | `22` |
+
+Leave these at Render defaults if they already match. Then **Manual Deploy**.
 
 Or apply [`render.yaml`](../render.yaml) (service name `stk402-consumer`).
 

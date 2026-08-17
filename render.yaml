@@ -13,9 +13,9 @@ services:
     name: stk402-consumer
     runtime: static
     rootDir: .
-    installCommand: npm --prefix web ci
-    buildCommand: npm --prefix web run build
-    staticPublishPath: web/dist
+    installCommand: npm ci --include=dev
+    buildCommand: npm run build
+    staticPublishPath: dist
     envVars:
       - key: NODE_VERSION
         value: "22"

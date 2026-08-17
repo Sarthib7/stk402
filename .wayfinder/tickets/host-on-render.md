@@ -22,6 +22,19 @@ REPORTED: User locked hosting to Render. Deployment was on hold until they said 
 
 REPORTED: User asked to fix the failed Render Static Site (`/static/srv-…`).
 
+Cause: root `npm install` requires `file:vendor/starknet-privacy` (submodule not cloned on Render). Vite emits `web/dist` while Render often publishes `dist`.
+
+Fix:
+
+- `vendor-shims/` so root `npm install` works without the submodule
+- `npm run build` copies the SPA to `dist/` and `build/`
+- Skip vendor compile on Render unless `STK402_BUILD_VENDOR=1`
+- Paid Resource stays a Node Web Service (operator secrets + disk)
+
+## Amendment (2026-08-17)
+
+REPORTED: User asked to fix the failed Render Static Site (`/static/srv-…`).
+
 Cause: root `npm install` / `npm run build` against this repo. Root install requires `file:vendor/starknet-privacy` (submodule). There was no Consumer-only build path.
 
 Fix:
